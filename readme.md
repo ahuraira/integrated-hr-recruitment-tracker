@@ -14,7 +14,7 @@ This roadmap outlines the planned phases of the program. The current status indi
 
 | Phase | Description | Key Features | Status |
 | :--- | :--- | :--- | :--- |
-| **Phase 1: Manpower Requisition (MPR)** | Automates the process from requisition submission to final management approval for hiring. | - Automated Sequential ID Generation<br>- Dynamic VP/EVP Approval Workflow<br>- Attachment Handling<br>- Real-time Notifications | ✅ **Complete & In Production** |
+| **Phase 1: Manpower Requisition (MPR)** | Automates the process from requisition submission through final management approval and **assignment to an HR representative.** | - Automated Sequential ID Generation<br>- Dynamic VP/EVP Approval Workflow<br>- Attachment Handling<br>- Real-time Notifications<br>- **Interactive HR Assignment Card** | ✅ **Complete & In Production** |
 | **Phase 2: Candidate Sourcing & Tracking** | Provides a centralized system to track candidates against an approved MPR, from sourcing through to offer acceptance. | - Candidate Database per Requisition<br>- Stage & Status Tracking (Sourced, Interviewed)<br>- Interview Scheduling & Feedback Capture | 🟡 **In Development / Planned** |
 | **Phase 3: Employee Onboarding** | Manages the post-offer acceptance process, including visa processing, IT setup, and Day 1 readiness tasks. | - Onboarding Task Checklists<br>- Automated Notifications to Support Depts<br>- Visa Status Tracking | ⚪ **Future Scope** |
 
@@ -28,6 +28,7 @@ The program is built on the Microsoft 365 ecosystem, leveraging a suite of stand
 -   **Automation Engine:** Power Automate
 -   **Central Database:** SharePoint Online Lists
 -   **Collaboration & Notifications:** Microsoft Teams & Outlook
+-   **Configuration & Roles:** SharePoint System Configuration list manages approvers, HR Manager, and individual HR Team members (one per row).
 
 ---
 
@@ -44,6 +45,7 @@ Detailed documentation for each phase is maintained within this repository.
 | **[System Architecture](./docs/1-System-Architecture.md)** | The "Big Picture": Process flows, data models, and permissions for the MPR phase. |
 | **[Setup & Deployment Guide](./docs/2-Setup-And-Deployment-Guide.md)** | The "How to Rebuild": Step-by-step instructions to deploy the MPR system from scratch. |
 | **[Detailed Flow Logic](./docs/3-Detailed-Flow-Logic.md)** | The "How to Edit": A deep dive into the Power Automate flow, explaining complex logic and patterns. |
+| **[MPR-02 Assignment Flow Logic](./docs/3.1-Detailed-Flow-Logic-MPR-02.md)** | The "Assignment Process": Details the dedicated flow for HR assignment and interactive card. |
 
 ---
 
