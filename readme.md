@@ -90,10 +90,6 @@ The project is organized to separate the flow definitions from the documentation
 │   └── ... (and so on for all 6 flows)
 │
 └── docs/                     # Detailed documentation for all audiences
-    ├── assets/               # Supporting images and diagrams
-    │   ├── process-flow-diagram.png
-    │   └── data-model.png
-    │
     ├── 01-Business-Process-Overview.md
     ├── 02-Solution-Architecture.md
     ├── 03-Technical-Flow-Breakdown.md
