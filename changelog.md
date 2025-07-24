@@ -1,33 +1,28 @@
 # Changelog
 
-All notable changes to the "Recruitment Digitization & Automation Program" will be documented in this file.
+All notable changes to the "MPR Automation Suite" will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
 
 ---
 
-## [v1.1.0] - 2025-07-14
+## [1.0.0] - 2023-10-27
 
 ### Added
-
--   **New Flow (`MPR-02HRAssignment`):** Created a dedicated, decoupled flow to manage the assignment of an HR Representative to an approved MPR.
--   **Interactive Teams Assignment:** Implemented an Adaptive Card with a dynamic choice-set sent to the HR Manager, allowing for seamless assignment directly within Microsoft Teams.
--   **New Statuses:** Added `Pending HR Assignment` and `CV Sourcing` to the `Status` lifecycle to facilitate the new process.
--   **Expanded System Configuration:** System Configuration list now manages individual HR Team members (one per row) and the HR Manager for assignment selection.
--   **Updated Documentation:** System Architecture and Detailed Flow Logic updated to reflect new assignment flow, configuration, and process changes.
-
-### Changed
--   **Updated System Architecture:** All documentation has been updated to reflect the new two-flow, event-driven architecture and configuration management.
-
-## [v1.0.0] - 2024-07-03
-
-This is the initial, stable release of the Manpower Requisition (MPR) automation system, marking the completion of Phase 1.
-
-### Added
-
--   **Initial Process Automation:** Created the end-to-end Power Automate flow (`MPR - 01 - Initiation and Approval`) to manage the process from submission to final approval.
--   **Dynamic Sequential ID Generation:** Implemented logic to create user-friendly, unique IDs for each requisition (e.g., `MPR-EC-024`).
--   **Dynamic Approver Logic:** The system now automatically routes approvals to the correct VP and EVP based on Business Unit and Grade rules stored in a SharePoint configuration list.
--   **Attachment Handling:** The flow now correctly processes the filled MPR form uploaded by the requester and includes it in the approval requests.
--   **Core Data Structure:** Established the `MPR Tracker` and `System Configuration` SharePoint lists as the central database.
--   **Initial Documentation Framework:** Created the foundational documentation set in this GitHub repository, including System Architecture, Deployment Guide, and Detailed Flow Logic.
+-   **Initial Release:** The first official production release of the end-to-end MPR Automation Suite.
+-   **Flow: MPR-01-InitiationandApproval:** Automates the initial request from MS Forms, including dynamic VP/EVP approval loops.
+-   **Flow: MPR-02-HRAssignment:** Automates the assignment of approved MPRs to HR Representatives via an interactive Teams card for the HR Manager.
+-   **Flow: MPR-03-CandidateLifecycleManagement:** Manages the creation of unique Candidate IDs and orchestrates user-driven actions like scheduling interviews.
+-   **Flow: MPR-04-TriggerPostInterviewActions:** A scheduled flow that proactively sends feedback requests to interviewers.
+-   **Flow: MPR-05-CaptureInterviewFeedback:** Captures feedback from the MS Form and logs it against the correct interview event.
+-   **Flow: MPR-06-TransferInterviewFeedbackBackToInterviewTra:** Provides a mechanism for HR to finalize feedback and move the candidate to the next stage.
+-   **Full Documentation Suite:**
+    -   `README.md`: High-level project overview.
+    -   `01-Business-Process-Overview.md`: Detailed narrative of the business workflow.
+    -   `02-Solution-Architecture.md`: Technical architecture, data models, and key management strategy.
+    -   `03-Technical-Flow-Breakdown.md`: Deep-dive analysis of each Power Automate flow.
+    -   `04-User-Guides.md`: Step-by-step guides for all user roles.
+    -   `05-Deployment-and-Maintenance.md`: Protocols for deployment, configuration, and troubleshooting.
