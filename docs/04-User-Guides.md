@@ -45,7 +45,7 @@ Your role is to provide strategic approval for new positions. You can do this fr
     *   An email with the subject "New MPR Approval Request..."
     *   A message from the "Approvals" app in Microsoft Teams.
 
-    `[Screenshot placeholder: The approval card as it appears in Microsoft Teams]`
+    ![Approval Notificatio](https://github.com/user-attachments/assets/a9eaf65b-10b4-42ae-8ea2-5afcdb046104)
 
 2.  **Review Details:** The notification will contain all the key details of the requisition. You can click the link to the SharePoint item to view the full request and any attachments.
 3.  **Make a Decision:**
@@ -64,7 +64,8 @@ Your primary interaction with the system is to assign approved requisitions to y
 
 1.  **Receive Notification:** When an MPR is fully approved, you will receive an interactive "Adaptive Card" in a private chat with the Flow bot in Microsoft Teams.
 
-    `[Screenshot placeholder: The HR Manager's assignment card in Teams]`
+    ![Assignment Workflow card](https://github.com/user-attachments/assets/43890375-12a8-4905-a687-ae49ac380cdc)
+
 
 2.  **Review the Request:** The card will display the key details of the approved MPR.
 3.  **Assign a Recruiter:** From the dropdown menu on the card, select the **HR Representative** you wish to assign to this requisition.
