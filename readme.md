@@ -4,7 +4,7 @@
 ![Version: 1.0.0](https://img.shields.io/badge/version-1.0.0-blue.svg)
 [![Documentation](https://img.shields.io/badge/documentation-complete-brightgreen.svg)](./docs/01-Business-Process-Overview.md)
 
-This repository contains the full automation solution and documentation for the Al Gurg Integrated HR Recruitment Tracker. The suite leverages the Microsoft Power Platform to streamline and automate the end-to-end Manpower Requisition (MPR) process, from initial request and multi-level approvals to candidate lifecycle management and interview feedback consolidation.
+This repository contains the full automation solution and documentation for the TTE Integrated HR Recruitment Tracker. The suite leverages the Microsoft Power Platform to streamline and automate the end-to-end Manpower Requisition (MPR) process, from initial request and multi-level approvals to candidate lifecycle management and interview feedback consolidation.
 
 ## Business Value Proposition
 
