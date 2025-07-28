@@ -177,4 +177,41 @@ These three flows work in concert to manage the interview feedback process.
 -   The key to this entire loop is the **passing of the SharePoint item ID in the URL of the feedback form**. In Flow 4, the URL is built like this: `concat('https://forms.office.com/...', '&...ID=', outputs('Create_feedback_record')?['body/ID'])`. This allows Flow 5 to be stateless; it doesn't need to guess which item to update, it is explicitly told in the form data itself. Flow 6 provides a manual override for HR to accelerate the process or select a single definitive piece of feedback.
 
 ---
+
+## 7. Known Limitations & Design Considerations
+
+This section documents key architectural decisions, trade-offs, and known limitations of the current solution. It is intended to provide context for future developers and administrators on *why* the system was built in a particular way.
+
+### 7.1. General Architecture
+
+-   **Standard Connectors Only:** The entire suite has been built using standard connectors available within a typical Microsoft 365 license. This was a deliberate choice to maximize accessibility and minimize licensing costs. Consequently, premium features like Child Flows were avoided in favor of a "State Machine" pattern using SharePoint status fields as triggers.
+-   **Service Account Dependency:** The reliability of all flows is directly tied to the health of the service account used for its connections. A password change or license issue with the service account will cause all flows to fail. This is a standard operational dependency that requires proper IT governance.
+-   **Polling Triggers:** Several flows (`MPR-02`, `MPR-03`, `MPR-04`, `MPR-06`) use a polling trigger (`When an item is created or modified` or `Recurrence`). This means there can be a delay (typically 1-5 minutes for item modifications, or up to the recurrence interval for scheduled flows) between the event and the flow execution. The system is designed for near-real-time performance, not instantaneous execution.
+
+### 7.2. Flow-Specific Considerations
+
+#### **MPR-01: Initiation and Approval**
+
+-   **Form Attachment Handling:** Files attached to the initial MS Form are temporarily stored in the flow owner's (service account's) OneDrive. The flow then copies them to the SharePoint item. This dependency on a specific OneDrive folder (`/Apps/Microsoft Forms/...`) is a known point of fragility. Renaming the form or altering this folder structure will break the flow.
+-   **Approval Notification Attachments:** The decision was made to provide a link to the SharePoint item in the approval notification rather than attaching files directly. This simplifies the flow and ensures the approver always views the most current version of the item and its properties. While this requires an extra click, it avoids potential issues with file corruption or size limits in the Approvals connector. The flow *does* prepare an attachment variable (`varApprovalAttachemnts`) and a `Select` action to format attachments for email notifications, which is a robust pattern.
+
+#### **MPR-02: HR Assignment**
+
+-   **Trigger Condition is Critical:** This flow's efficiency relies entirely on the trigger condition `@equals(triggerBody()?['Status']?['Value'], 'MPR Approved')`. Without this, the flow would run on every single modification to the `MPR Tracker` list, leading to unnecessary API consumption and potential performance issues.
+-   **Adaptive Card Response:** The flow uses a `Parse JSON` action on the response from the Adaptive Card. This is a robust pattern but depends on the card's `id` fields (`assignedHrRepEmail`) remaining consistent. If the card is edited in the future and this `id` is changed, this flow will fail.
+
+#### **MPR-03: Candidate Lifecycle Management**
+
+-   **"Reset to Idle" Pattern:** This flow's primary control mechanism is the `"Next Action (Trigger)"` field. After executing a command (like "Schedule Next Interview"), the flow intentionally resets this field to a neutral "Waiting for Input" value. This is a critical design pattern that hands control back to the HR user and prevents accidental re-triggers of the automation.
+
+#### **MPR-04: Trigger Post-Interview Actions**
+
+-   **Time zone dependency:** The flow is scheduled to run daily at a fixed time in a specific timezone ("Arabian Standard Time"). The filter query for `NextInterviewDate` also uses this timezone context. This is consistent, but administrators should be aware that all date/time operations are standardized to this setting.
+-   **Nested Loops:** The flow contains a nested `Apply to each` loop (one for events, one for panelists). For requisitions with an extremely large number of interview events and large panels, this could lead to long run times. The current design is optimized for typical business scenarios.
+
+#### **MPR-06: Process Final Feedback**
+
+-   **Single Point of Finality:** This flow is designed to run when the `TreatasFinalFeedback` checkbox is ticked. The business process assumes that only one piece of feedback per interview event will be marked as "final." The system does not have a built-in mechanism to handle or prevent multiple conflicting "final" feedback submissions for the same candidate round. This relies on user process adherence.
+
+---
 _This document details the internal logic of each flow. For information on how end-users interact with the system, please see [04-User-Guides.md](./04-User-Guides.md)._
