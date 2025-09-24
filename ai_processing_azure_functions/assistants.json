@@ -1,0 +1,411 @@
+{
+  "version": "1.0",
+  "updated_at": "2025-09-23T10:30:00Z",
+  "environment": "production",
+  "description": "Centralized configuration for AI-powered CV processing assistants",
+  
+  "assistants": {
+    "cv_data_extractor": {
+      "assistant_id": "${CV_DATA_EXTRACTOR_ASSISTANT_ID}",
+      "name": "CV Data Extractor",
+      "description": "Extracts structured candidate information from CV text with high accuracy",
+      "model": "gpt-4o-mini-for-cvs",
+      "temperature": 0.1,
+      "top_p": 1.0,
+      "max_tokens": 2000,
+      "instructions": [
+        "You are an expert HR data extraction specialist with deep knowledge of CV formats and candidate information patterns. Your task is to extract structured candidate information from the provided CV text with maximum accuracy and completeness.",
+        "",
+        "Rules:",
+        "1. Extract only explicitly present information. Do not invent or infer things that are not supported by explicit text.",
+        "2. You may compute numeric fields (e.g., total years) only when explicit dates/durations are present in the CV; otherwise return null.",
+        "3. Return null for any field not explicitly found or computable.",
+        "4. Normalize phone numbers to E.164 if a country code is present; otherwise return raw string and set phoneNormalized = false.",
+        "5. When multiple values exist (emails/phones/profiles), pick the best primary candidate (prefer top-of-CV / professional values) and list others under `otherEmails`/`otherPhones`/`otherProfileUrls`.",
+        "6. For each top-level critical field (name, email, phone), include a short `extractionNotes` snippet showing the text used to extract it; keep snippet <= 200 chars.",
+        "7. Do not output any explanatory text — return only the JSON that conforms exactly to the provided JSON schema.",
+        "",
+        "Output:",
+        "- Return data in the exact JSON schema provided. Use null (not empty strings) for missing values.",
+        "- Ensure numeric fields (experience years) are numbers.",
+        "- Provide `extractionConfidence` (0.0 - 1.0) for the overall extraction."
+      ],
+      "json_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "candidateProfile": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "candidateName": { "type": ["string", "null"] },
+                "candidateEmail": { "type": ["string", "null"] },
+                "otherEmails": {
+                "type": ["array", "null"],
+                "items": { "type": "string" }
+                },
+                "candidatePhone": { "type": ["string", "null"] },
+                "otherPhones": {
+                "type": ["array", "null"],
+                "items": { "type": "string" }
+                },
+                "phoneNormalized": { "type": ["boolean", "null"] },
+                "linkedInUrl": { "type": ["string", "null"] },
+                "otherProfileUrls": {
+                "type": ["array", "null"],
+                "items": { "type": "string" }
+                },
+                "currentLocation": { "type": ["string", "null"] },
+                "currentTitle": { "type": ["string", "null"] },
+                "currentCompany": { "type": ["string", "null"] },
+                "professionalHeadline": { "type": ["string", "null"] },
+                "totalExperienceYears": { "type": ["number", "null"] },
+                "relevantExperienceYears": { "type": ["number", "null"] },
+                "highestQualification": { "type": ["string", "null"] },
+                "extractionConfidence": { "type": ["number", "null"] },
+                "extractionNotes": { "type": ["string", "null"] }
+            },
+            "required": ["candidateName", "candidateEmail", "otherEmails", "candidatePhone", "otherPhones", "phoneNormalized", "linkedInUrl", "otherProfileUrls", "currentLocation", "currentTitle", "currentCompany", "professionalHeadline", "totalExperienceYears", "relevantExperienceYears", "highestQualification", "extractionConfidence", "extractionNotes"]
+          }
+        },
+        "required": ["candidateProfile"]
+      }
+    },
+    
+    "cv_pii_identifier": {
+      "assistant_id": "${CV_PII_IDENTIFIER_ASSISTANT_ID}",
+      "name": "CV PII Identifier",
+      "description": "Identifies personally identifiable information in CV text for programmatic anonymization",
+      "model": "gpt-4o-mini-for-cvs",
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "max_tokens": 1500,
+      "instructions": [
+        "You are a privacy protection specialist with expertise in identifying Personally Identifiable Information (PII) across different cultural and regional contexts. Your task is to identify all PII in the provided CV text for programmatic anonymization.",
+        "",
+        "## Objective",
+        "Identify PII entities with exact substring matching for precise programmatic replacement. Focus on accuracy and completeness to ensure proper anonymization.",
+        "",
+        "## PII Categories to Identify",
+        "",
+        "### High Sensitivity (Level 4)",
+        "- **Names**: Candidate name, references, emergency contacts, family members",
+        "- **National IDs**: Emirates ID, Social Security Numbers, Passport numbers",
+        "- **Personal Addresses**: Home addresses, specific street locations",
+        "",
+        "### Medium-High Sensitivity (Level 3)",
+        "- **Organizations**: Current/previous employers (if identifying)",
+        "- **Schools**: Universities, colleges, specific educational institutions",
+        "- **Certification Numbers**: License numbers, professional certifications",
+        "",
+        "### Medium Sensitivity (Level 2)",
+        "- **Job Titles**: If combined with company name could identify person (evaluate in context)",
+        "",
+        "### Lower Sensitivity (Level 1)",
+        "- **General Locations**: Cities, countries (evaluate in context)",
+        "- **Industry Terms**: May be kept if not identifying",
+        "",
+        "## Regional Context Awareness",
+        "Pay special attention to Middle Eastern context:",
+        "- Emirates ID numbers (format: 784-YYYY-NNNNNNN-N)",
+        "- Arabic names and transliterations",
+        "- Local company names and institutions",
+        "- Wasta/Iqama numbers",
+        "- Local educational institutions",
+        "",
+        "## Instructions",
+        "1. Scan the entire CV text systematically",
+        "2. Identify exact substrings that constitute PII",
+        "3. Provide the exact text as it appears (critical for replacement)",
+        "4. Include all variations of the same entity found in the text",
+        "5. Classify each entity by type and sensitivity level",
+        "6. Provide context for where each PII was found",
+        "7. Mark region-specific PII appropriately",
+        "",
+        "## Output Requirements",
+        "- Provide exact substrings as they appear in the original text",
+        "- Include all variations of each PII entity",
+        "- Assign appropriate sensitivity levels (1-4)",
+        "- Be thorough but avoid false positives",
+        "- Focus on information that could actually identify the individual",
+        "",
+        "Analyze the CV text and identify all PII entities now:"
+      ],
+      "json_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pii_entities": {
+            "type": "array",
+            "description": "Array of identified PII entities with metadata",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "original_value": {
+                  "type": "string",
+                  "description": "Exact substring from the CV text as it appears"
+                },
+                "pii_type": {
+                  "type": "string",
+                  "enum": [
+                    "name", 
+                    "address", 
+                    "organization", 
+                    "school", 
+                    "job_title", 
+                    "certification_number", 
+                    "license_number", 
+                    "national_id",
+                    "client_name"
+                  ],
+                  "description": "Type of PII detected"
+                },
+                "sensitivity_level": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4,
+                  "description": "Sensitivity level: 1=lowest, 4=highest"
+                },
+                "all_variations": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "All variations of this entity found in the text"
+                },
+                "context": {
+                  "type": "string",
+                  "description": "Brief context describing where this PII was found"
+                },
+                "region_specific": {
+                  "type": "boolean",
+                  "description": "True if this is Middle Eastern or region-specific PII"
+                }
+              },
+              "required": [
+                "original_value", 
+                "pii_type", 
+                "sensitivity_level", 
+                "all_variations", 
+                "context",
+                "region_specific"
+              ]
+            }
+          }
+        },
+        "required": ["pii_entities"]
+      }
+    },
+    
+    "cv_skills_analyst": {
+      "assistant_id": "${CV_SKILLS_ANALYST_ASSISTANT_ID}",
+      "name": "CV Skills Analyst",
+      "description": "Analyzes professional skills and experience from anonymized CV content",
+      "model": "gpt-4o-mini-for-cvs",
+      "temperature": 0.2,
+      "top_p": 1.0,
+      "max_tokens": 2500,
+      "instructions": [
+        "You are a professional skills analysis expert and career assessment specialist. Your task is to analyze anonymized CV content to extract comprehensive professional qualifications, skills, and experience information while calculating fit scores for the target position.",
+        "",
+        "## Context",
+        "Target Job Title: {job_title}",
+        "",
+        "## Analysis Framework",
+        "",
+        "### 1. Core Skills Assessment",
+        "- **Technical Skills**: Programming languages, software, tools, platforms",
+        "- **Professional Skills**: Project management, leadership, communication",
+        "- **Industry Skills**: Domain-specific knowledge and experience",
+        "- **Proficiency Evaluation**: Assess skill levels based on experience context",
+        "- **Experience Duration**: Years of experience per skill based on job history",
+        "",
+        "### 2. Work Experience Analysis",
+        "- **Career Progression**: Analyze growth trajectory and advancement",
+        "- **Company Context**: Assess company sizes and industry types",
+        "- **Role Complexity**: Evaluate responsibilities and scope",
+        "- **Achievements**: Identify quantifiable accomplishments",
+        "- **Industry Relevance**: Match experience to target role requirements",
+        "",
+        "### 3. Education and Qualifications",
+        "- **Degree Levels**: Assess educational background relevance",
+        "- **Field Alignment**: Match education to target role requirements",
+        "- **Certifications**: Professional certifications and ongoing learning",
+        "- **Specialized Training**: Additional qualifications and courses",
+        "",
+        "### 4. Fit Assessment Methodology",
+        "- **Overall Fit Score (0-100)**: Comprehensive match to target role",
+        "- **Technical Fit**: Match of technical skills to requirements",
+        "- **Experience Fit**: Relevance of work history",
+        "- **Educational Fit**: Alignment of qualifications",
+        "- **Growth Potential**: Candidate's learning trajectory",
+        "",
+        "## Scoring Guidelines",
+        "",
+        "### Overall Fit Score Ranges",
+        "- **90-100**: Exceptional fit, exceeds requirements",
+        "- **80-89**: Strong fit, meets most requirements well",
+        "- **70-79**: Good fit, meets core requirements",
+        "- **60-69**: Moderate fit, some gaps but potential",
+        "- **50-59**: Fair fit, significant development needed",
+        "- **Below 50**: Poor fit for the role",
+        "",
+        "### AI Confidence Score",
+        "Rate your confidence (0-100) in the analysis based on:",
+        "- Clarity and detail of the anonymized CV content",
+        "- Completeness of professional information available",
+        "- Ability to assess fit for the specific target role",
+        "",
+        "## Analysis Requirements",
+        "1. Provide objective, data-driven analysis",
+        "2. Base assessments on evidence from the CV content",
+        "3. Calculate realistic fit scores with justification",
+        "4. Identify specific strengths and development areas",
+        "5. Consider both current capabilities and growth potential",
+        "6. Provide actionable insights for hiring decisions",
+        "",
+        "Analyze the professional content and provide comprehensive assessment:"
+      ],
+      "json_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "analysisMetrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "aiConfidenceScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "AI confidence level in analysis accuracy (0-100)"
+              },
+              "aiRemarks": {
+                "type": "string",
+                "description": "AI analysis summary with key observations and reasoning"
+              },
+              "overallFitScore": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Overall candidate fit score for target role (0-100)"
+              }
+            },
+            "required": ["aiConfidenceScore", "aiRemarks", "overallFitScore"]
+          },
+          "professionalProfile": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "coreSkills": {
+                "type": "array",
+                "description": "Core professional and technical skills identified",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "skillName": {
+                      "type": "string",
+                      "description": "Name of the skill"
+                    },
+                    "proficiencyLevel": {
+                      "type": "string",
+                      "enum": ["Beginner", "Intermediate", "Advanced", "Expert"],
+                      "description": "Assessed proficiency level"
+                    },
+                    "yearsOfExperience": {
+                      "type": "number",
+                      "description": "Estimated years of experience with this skill"
+                    }
+                  },
+                  "required": ["skillName", "proficiencyLevel", "yearsOfExperience"]
+                }
+              },
+              "workExperience": {
+                "type": "array",
+                "description": "Structured work experience analysis",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "jobTitle": {
+                      "type": "string",
+                      "description": "Job title or role (anonymized if needed)"
+                    },
+                    "companySize": {
+                      "type": "string",
+                      "enum": ["Startup", "Small", "Medium", "Large Enterprise"],
+                      "description": "Estimated company size category"
+                    },
+                    "duration": {
+                      "type": "string",
+                      "description": "Duration in role (e.g., '2 years 3 months')"
+                    },
+                    "keyResponsibilities": {
+                      "type": "array",
+                      "items": {"type": "string"},
+                      "description": "Key responsibilities and duties"
+                    },
+                    "keyAchievements": {
+                      "type": "array",
+                      "items": {"type": "string"},
+                      "description": "Notable achievements and accomplishments"
+                    }
+                  },
+                  "required": ["jobTitle", "companySize", "duration", "keyResponsibilities", "keyAchievements"]
+                }
+              },
+              "educationProfile": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highestDegreeLevel": {
+                    "type": "string",
+                    "enum": ["High School", "Associate", "Bachelor", "Masters", "PhD", "Professional"],
+                    "description": "Highest educational qualification level"
+                  },
+                  "fieldOfStudy": {
+                    "type": "string",
+                    "description": "Primary field of study or specialization"
+                  },
+                  "relevantCertifications": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Professional certifications and credentials"
+                  }
+                },
+                "required": ["highestDegreeLevel", "fieldOfStudy", "relevantCertifications"]
+              }
+            },
+            "required": ["coreSkills", "workExperience", "educationProfile"]
+          }
+        },
+        "required": ["analysisMetrics", "professionalProfile"]
+      }
+    }
+  },
+  
+  "global_settings": {
+    "provider": "azure_openai",
+    "api_version": "2024-05-01-preview",
+    "timeout_seconds": 30,
+    "max_retries": 3,
+    "rate_limit_per_minute": 20,
+    "default_model": "gpt-5-mini-for-cvs",
+    "azure_openai": {
+      "endpoint": "${AZURE_OPENAI_ENDPOINT}",
+      "api_key": "${AZURE_OPENAI_API_KEY}",
+      "deployment_name": "${AZURE_OPENAI_DEPLOYMENT_NAME}",
+      "api_version": "2024-05-01-preview"
+    },
+    "cost_optimization": {
+      "enable_caching": true,
+      "max_prompt_length": 50000,
+      "max_response_length": 10000
+    },
+    "quality_settings": {
+      "min_confidence_threshold": 70,
+      "enable_response_validation": true,
+      "enable_prompt_optimization": true
+    }
+  }
+}
