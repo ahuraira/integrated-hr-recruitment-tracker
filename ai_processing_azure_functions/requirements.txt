@@ -6,3 +6,4 @@ azure-functions
 openai
 python-docx
 pymupdf4llm
+requests  # For testing

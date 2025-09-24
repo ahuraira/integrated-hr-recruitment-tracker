@@ -1,0 +1,29 @@
+{
+  "provider": "azure_openai",
+  "created_at": "2025-09-24T17:02:42.699408",
+  "total_assistants": 3,
+  "azure_endpoint": "https://oai-mpr-assistant.openai.azure.com/",
+  "api_version": "2024-05-01-preview",
+  "assistants": {
+    "cv_data_extractor": {
+      "id": "asst_8rSMTDBvlFacFrAOhgLe08ew",
+      "name": "CV Data Extractor",
+      "created_at": "2025-09-24T17:02:42.070439"
+    },
+    "cv_pii_identifier": {
+      "id": "asst_uxB6Hl9SSOF4eeMnGZTlDGh3",
+      "name": "CV PII Identifier",
+      "created_at": "2025-09-24T17:02:42.374791"
+    },
+    "cv_skills_analyst": {
+      "id": "asst_3MOD3u5jjqSCqIKizdYwktHa",
+      "name": "CV Skills Analyst",
+      "created_at": "2025-09-24T17:02:42.687318"
+    }
+  },
+  "environment_variables": {
+    "CV_DATA_EXTRACTOR_ASSISTANT_ID": "asst_8rSMTDBvlFacFrAOhgLe08ew",
+    "CV_PII_IDENTIFIER_ASSISTANT_ID": "asst_uxB6Hl9SSOF4eeMnGZTlDGh3",
+    "CV_SKILLS_ANALYST_ASSISTANT_ID": "asst_3MOD3u5jjqSCqIKizdYwktHa"
+  }
+}
