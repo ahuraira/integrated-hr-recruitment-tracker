@@ -1,0 +1,19 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AZURE_OPENAI_ENDPOINT": "https://your-azure-openai-endpoint.openai.azure.com/",
+    "AZURE_OPENAI_API_KEY": "your-azure-openai-api-key-here",
+    "AZURE_OPENAI_API_VERSION": "2024-12-01-preview",
+    "AZURE_OPENAI_DEPLOYMENT_NAME": "your-deployment-name",
+    "PROCESSING_TIMEOUT_SECONDS": "30",
+    "MAX_FILE_SIZE_MB": "10",
+    "ENABLE_DEBUG_LOGGING": "true",
+    "OPENAI_API_KEY": "your-openai-api-key-here",
+    "OPENAI_MODEL": "gpt-4o-mini",
+    "CV_DATA_EXTRACTOR_ASSISTANT_ID": "your-data-extractor-assistant-id",
+    "CV_PII_IDENTIFIER_ASSISTANT_ID": "your-pii-identifier-assistant-id",
+    "CV_SKILLS_ANALYST_ASSISTANT_ID": "your-skills-analyst-assistant-id"
+  }
+}

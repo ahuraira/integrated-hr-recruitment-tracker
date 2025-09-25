@@ -1,0 +1,31 @@
+# Test requirements for CV Processing Engine Test Suite
+# These are additional dependencies needed specifically for running tests
+
+# Core testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0           # Coverage reporting
+pytest-mock>=3.11.1         # Enhanced mocking capabilities
+pytest-asyncio>=0.21.1      # Async testing support
+
+# Testing utilities
+mock>=4.0.3                 # Additional mocking utilities
+responses>=0.23.3           # HTTP request mocking
+freezegun>=1.2.2           # Time mocking for tests
+factory-boy>=3.3.0         # Test data generation
+
+# File generation for testing
+python-docx>=0.8.11        # Create test DOCX files
+pypdf>=3.15.0              # PDF manipulation for tests
+reportlab>=4.0.4           # PDF generation
+
+# Additional testing tools
+hypothesis>=6.82.0         # Property-based testing
+parameterized>=0.9.0       # Parameterized test cases
+
+# Performance testing
+pytest-benchmark>=4.0.0    # Performance benchmarking
+memory-profiler>=0.61.0    # Memory usage profiling
+
+# Test reporting
+pytest-html>=3.2.0        # HTML test reports
+pytest-json-report>=1.5.0 # JSON test reports
