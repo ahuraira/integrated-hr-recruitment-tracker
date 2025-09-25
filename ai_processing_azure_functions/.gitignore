@@ -127,9 +127,26 @@ bin
 obj
 appsettings.json
 local.settings.json
+azure_assistant_config.json
 
 # Azurite artifacts
 __blobstorage__
 __queuestorage__
 __azurite_db*__.json
 .python_packages
+
+# Test artifacts and reports
+reports/
+.coverage
+.benchmarks/
+htmlcov/
+coverage.xml
+junit.xml
+pytest_report.html
+report.json
+
+# Additional sensitive files
+assistants.json
+azure_assistant_summary.json
+*.key
+*.secret

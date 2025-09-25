@@ -1,13 +1,40 @@
 # Python virtual environment
 .venv/
+.env
+venv/
+env/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
 # VS Code
 .vscode/
 
-# Local settings
+# Local settings and sensitive files
 local.settings.json
+azure_assistant_config.json
+*.env
+.env.*
 
-# Environment variables
-.env
+# Test artifacts and reports
+reports/
+.coverage
+.pytest_cache/
+.benchmarks/
+htmlcov/
+.tox/
+coverage.xml
+junit.xml
+pytest_report.html
+report.json
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
