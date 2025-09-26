@@ -4,6 +4,7 @@ import logging
 import io
 from docx import Document
 import pymupdf4llm # Uses PyMuPDF, optimized for LLM-friendly Markdown output
+import pymupdf # Required for creating document objects
 
 # Define custom exceptions for clear error handling
 class UnsupportedFileType(Exception):
@@ -29,29 +30,70 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
         UnsupportedFileType: If the file extension is not .pdf or .docx.
         DocumentProcessingError: If the document is corrupt or text extraction fails.
     """
-    logging.info(f"Starting text extraction for file: {file_name}")
+    # Input validation
+    if not file_name or not isinstance(file_name, str):
+        raise DocumentProcessingError("Invalid file name provided")
     
-    file_extension = file_name.lower().split('.')[-1]
+    if not file_bytes or not isinstance(file_bytes, bytes):
+        raise DocumentProcessingError("Invalid file content provided")
+    
+    if len(file_bytes) == 0:
+        raise DocumentProcessingError(f"File {file_name} is empty")
+    
+    logging.info(f"Starting text extraction for file: {file_name} ({len(file_bytes)} bytes)")
+    
+    # Extract file extension
+    file_parts = file_name.lower().split('.')
+    if len(file_parts) < 2:
+        raise UnsupportedFileType(f"File {file_name} has no extension. Only .pdf and .docx are supported.")
+    
+    file_extension = file_parts[-1]
 
     try:
         markdown_text = ""
         if file_extension == 'pdf':
             # PyMuPDF4LLM is highly efficient and designed for this exact use case
             # It uses PyMuPDF under the hood but with better formatting for AI
-            markdown_text = pymupdf4llm.to_markdown(file_bytes)
+            pdf_doc = None
+            try:
+                # Create a PyMuPDF document object from bytes
+                pdf_doc = pymupdf.open(stream=file_bytes, filetype="pdf")
+                
+                # Validate the PDF was opened successfully
+                if pdf_doc.page_count == 0:
+                    raise DocumentProcessingError(f"PDF {file_name} appears to be empty (0 pages)")
+                
+                # Extract markdown using pymupdf4llm
+                markdown_text = pymupdf4llm.to_markdown(pdf_doc)
+                
+            except pymupdf.FileDataError as pdf_error:
+                raise DocumentProcessingError(f"Invalid or corrupted PDF file {file_name}: {pdf_error}")
+            except Exception as pdf_error:
+                raise DocumentProcessingError(f"Failed to process PDF file {file_name}: {pdf_error}")
+            finally:
+                # Always close the document to free memory
+                if pdf_doc is not None:
+                    try:
+                        pdf_doc.close()
+                    except:
+                        pass  # Ignore close errors
 
         elif file_extension == 'docx':
             # For DOCX, we can build a simple Markdown representation.
             # A more advanced library could be used here if needed, but this is robust.
-            document = Document(io.BytesIO(file_bytes))
-            markdown_parts = []
-            for para in document.paragraphs:
-                # Basic heuristic: Treat paragraphs with bold runs as headings
-                if para.runs and any(run.bold for run in para.runs):
-                    markdown_parts.append(f"## {para.text}\n")
-                else:
-                    markdown_parts.append(f"{para.text}\n")
-            markdown_text = "\n".join(markdown_parts)
+            try:
+                document = Document(io.BytesIO(file_bytes))
+                markdown_parts = []
+                for para in document.paragraphs:
+                    if para.text.strip():  # Only add non-empty paragraphs
+                        # Basic heuristic: Treat paragraphs with bold runs as headings
+                        if para.runs and any(run.bold for run in para.runs):
+                            markdown_parts.append(f"## {para.text.strip()}\n")
+                        else:
+                            markdown_parts.append(f"{para.text.strip()}\n")
+                markdown_text = "\n".join(markdown_parts)
+            except Exception as docx_error:
+                raise DocumentProcessingError(f"Failed to process DOCX file {file_name}: {docx_error}")
             
         else:
             raise UnsupportedFileType(f"Unsupported file type: '{file_extension}'. Only .pdf and .docx are supported.")

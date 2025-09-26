@@ -307,7 +307,8 @@ def consolidate_processing_results(
     document_result: Dict[str, Any],
     candidate_result: Dict[str, Any],
     start_time: float,
-    correlation_id: str
+    correlation_id: str,
+    original_job_title: str
 ) -> Dict[str, Any]:
     """
     Consolidate all processing results into final JSON structure
@@ -317,25 +318,29 @@ def consolidate_processing_results(
         candidate_result: Results from candidate data extraction
         start_time: Processing start time
         correlation_id: Request correlation ID
+        original_job_title: Target job title from request (position applying for)
         
     Returns:
         Dict with consolidated results
     """
     total_processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
     
+    # Use the original job title from the request (target position)
+    job_title = original_job_title
+    
     final_result = {
         'processingStatus': 'Success',
         'processingMetadata': {
             'totalProcessingTimeMs': int(total_processing_time),
             'fileName': document_result['file_name'],
-            'jobTitle': candidate_result['candidateProfile']['jobTitle'],
+            'jobTitle': job_title,
             'processedTimestamp': datetime.utcnow().isoformat() + 'Z',
             'correlationId': correlation_id
         },
-        'candidateProfile': candidate_result['candidateProfile'],
-        'professionalAnalysis': candidate_result['professionalAnalysis'],
-        'aiCallLogs': candidate_result['aiCallLogs'],
-        'tokenUsageSummary': candidate_result['tokenUsageSummary']
+        'candidateProfile': candidate_result.get('candidateProfile', {}),
+        'professionalAnalysis': candidate_result.get('professionalAnalysis', {}),
+        'aiCallLogs': candidate_result.get('aiCallLogs', []),
+        'tokenUsageSummary': candidate_result.get('tokenUsageSummary', {})
     }
     
     return final_result
@@ -456,7 +461,8 @@ def cv_processing_function(req: func.HttpRequest) -> func.HttpResponse:
             document_result,
             candidate_result,
             processing_start_time,
-            correlation_id
+            correlation_id,
+            validated_inputs['jobTitle']  # Pass original job title as fallback
         )
         
         # Step 6: Return success response
