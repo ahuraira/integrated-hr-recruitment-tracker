@@ -2,104 +2,110 @@
 
 ## 1. Introduction
 
-This document is the technical guide for IT administrators and future developers responsible for deploying, managing, and maintaining the Manpower Requisition (MPR) Automation Suite. It assumes the reader has administrative access to the Microsoft Power Platform and SharePoint Online environments.
+This document is the primary technical guide for IT administrators and Power Platform developers responsible for deploying, managing, and maintaining the Manpower Requisition (MPR) Automation Suite. It outlines the protocols for Application Lifecycle Management (ALM), routine maintenance, monitoring, and disaster recovery.
 
-Following these procedures is critical for ensuring system stability, security, and adherence to proper Application Lifecycle Management (ALM) practices.
+Adherence to these procedures is critical for ensuring system stability, security, and the long-term integrity of the solution.
 
-## 2. Deployment Protocol
+## 2. Solution Architecture & Dependencies
 
-Deploying this solution involves more than just importing flows; it requires setting up the data backend and configuring connections correctly. This protocol should be followed for any new environment (e.g., deploying from a Development environment to Production).
+Before any deployment, it is essential to understand the solution's hybrid architecture. The system consists of two primary, interconnected components:
 
-### 2.1. Prerequisites
+1.  **The Power Platform Solution:** A **managed solution** containing all Power Automate flows, connection references, and environment variables. This orchestrates the business process.
+2.  **The Azure Function App:** A **pro-code Python application** (`ai-processing-azure-functions`) that handles the specialized task of CV parsing and AI analysis.
 
-Before starting the deployment, ensure the following components are in place in the target environment:
-
-1.  **SharePoint Site:** A dedicated SharePoint site must exist.
-    -   **Site Name:** `Integrated HR Recruitment Tracker`
-2.  **SharePoint Lists:** All required lists must be manually created with the exact column names and data types as defined in the [Solution Architecture document](./02-Solution-Architecture.md). This is a critical step, as the flows rely on the internal names of these columns.
-    -   `MPR Tracker`
-    -   `Candidate Tracker`
-    -   `Interview Tracker`
-    -   `Interview Feedback Tracker`
-    -   `Configuration` (This list will store approver and team data)
-3.  **Service Account:** A dedicated, non-personal service account (e.g., `svc-powerautomate@tte.ae`) must be created in Microsoft 365.
-    -   This account must have the necessary Power Automate licenses.
-    -   It must be granted "Contribute" or "Edit" permissions on the SharePoint site.
-    -   All Power Platform connections in the target environment must be created using this account.
-
-### 2.2. Step-by-Step Deployment Process
-
-The entire solution is packaged within a single Power Platform Solution for portability.
-
-1.  **Export the Solution:**
-    -   In the source environment, navigate to **Solutions** and select the MPR Automation Suite solution.
-    -   Click **Export**.
-    -   Select **Managed** as the package type. This is crucial as it prevents direct, unmanaged customizations in the production environment, enforcing a proper ALM process.
-    -   Download the exported `.zip` file.
-
-2.  **Import the Solution:**
-    -   In the target environment, navigate to **Solutions** and click **Import**.
-    -   Select the `.zip` file downloaded in the previous step.
-
-3.  **Configure Connection References:**
-    -   During the import wizard, you will be prompted to configure the **Connection References**. This is the most important post-import step.
-    -   For each reference listed (e.g., `shared_sharepointonline`, `shared_teams`), you must map it to the corresponding connection that has been pre-configured with the **Service Account**.
-    -   Do **not** use personal user connections.
-
-4.  **Populate the Configuration List:**
-    -   The `Configuration` SharePoint list in the new environment will be empty.
-    -   Manually populate this list with the correct production data (e.g., the names and email addresses of the actual VPs, EVPs, HR Manager, and HR Team members). The flows dynamically query this list, so this data must be accurate.
-
-5.  **Turn On the Flows:**
-    -   By default, all flows within an imported solution are turned off.
-    -   Navigate to the solution details, and manually **Turn On** each of the six Power Automate flows. It is best to turn them on in their logical order of execution, starting with `MPR-01`.
-
-## 3. Maintenance and Operations
-
-### 3.1. Routine Maintenance
-
-These are common administrative tasks that do not require editing the flows.
-
-#### Updating Approvers or HR Team Members
--   **Scenario:** A VP changes, or a new recruiter joins the HR team.
--   **Procedure:**
-    1.  Navigate to the `Configuration` SharePoint list.
-    2.  **Do not edit the flows.**
-    3.  Update the relevant item in the list. For example, edit the "TTE VP" item and update the person in the `Account` field.
-    -   The flows will automatically pick up this change on their next run. This is a core benefit of the centralized configuration design.
-
-#### Modifying Choice Field Options
--   **Scenario:** The HR team wants to add a new option to the `"Next Action (Trigger)"` dropdown in the `Candidate Tracker`.
--   **Procedure:** This is a code-level change and must follow the full deployment lifecycle (Dev -> Test -> Prod).
-    1.  **In the Development environment:**
-        a.  Update the column choices in the `Candidate Tracker` SharePoint list.
-        b.  Modify the `MPR-03-CandidateLifecycleManagement` flow to add a new `Case` to the `Switch` action that handles the new choice.
-    2.  Test the changes thoroughly in Development.
-    3.  Export the solution and deploy it to Production using the protocol above.
-
-### 3.2. Monitoring and Troubleshooting
-
-#### Monitoring Flow Run History
--   The primary tool for monitoring is the Power Automate portal.
--   Navigate to **My flows** > **Cloud flows**. From here, you can see the 28-day run history for each flow.
--   A **"Succeeded"** status indicates the flow completed without error.
--   A **"Failed"** status requires immediate investigation.
-
-#### Troubleshooting a Failed Flow
-1.  **Identify the Failure:** In the flow's run history, click on the timestamp of the failed run.
-2.  **Locate the Error:** The flow editor will open, displaying a red exclamation mark `(!)` on the specific action that failed.
-3.  **Examine Inputs and Outputs:** Click on the failed action. Review the `INPUTS` and `OUTPUTS` sections. The `body` or `error` message in the output will almost always contain the specific reason for the failure (e.g., "Item not found," "Invalid user," "The expression is invalid.").
-4.  **Formulate a Plan:** Based on the error, determine the cause.
-    -   **Bad Data:** An incorrect email, a missing ID, etc. The data may need to be corrected in the SharePoint list.
-    -   **Permissions Issue:** The service account may have lost access to a required resource.
-    -   **Logic Error:** The flow's internal logic or an expression may be flawed. This requires a code-level fix and redeployment.
-5.  **Resubmit (Use with Caution):** For failures caused by transient issues (e.g., a temporary service outage), you can use the **Resubmit** button on the failed run page. Do not resubmit if the root cause was bad data that has not yet been corrected.
-
-### 3.3. Backup and Recovery
-
--   **Flow Definitions:** The primary backup of the flow logic is this **GitHub repository**. The JSON files in the `/flows` directory represent a point-in-time snapshot of the solution. If a flow is accidentally deleted or corrupted, it can be recreated by importing the corresponding JSON file.
--   **Data:** All transactional data resides in SharePoint Online. SharePoint has its own native backup and recovery features, including version history for list items and a multi-stage Recycle Bin.
--   **Solution Backup:** Regular (e.g., quarterly) manual exports of the entire managed solution from the Production environment should be taken and stored in a secure location as an additional disaster recovery measure.
+These two components are deployed and managed separately but are dependent on each other.
 
 ---
-_This guide provides the foundation for managing the MPR Automation Suite. Always follow proper change management procedures when modifying the production environment._
+
+## 3. First-Time Environment Setup
+
+This protocol is for deploying the entire solution to a new, clean environment (e.g., a formal UAT or Production environment).
+
+### 3.1. Prerequisites
+
+-   **Azure:** An Azure subscription with permissions to create Resource Groups, Storage Accounts, and Azure AI/OpenAI resources.
+-   **Power Platform:** A Power Platform environment with a Dataverse database (required for Solutions).
+-   **Service Account:** A dedicated, non-personal service account (e.g., `svc-mpr-automation@yourcompany.com`) with:
+    -   A Power Automate Premium license (a "Per user" license for the service account is sufficient to own and run the flows).
+    -   Permissions to read/write to the target SharePoint site.
+    -   An active mailbox.
+
+### 3.2. Azure Deployment (The AI Engine)
+
+1.  **Deploy Azure Resources:** In the target Azure subscription, create a new Resource Group. Within this group, provision:
+    *   An **Azure OpenAI Service**.
+    *   A **Storage Account**.
+    *   An **Application Insights** resource for logging.
+    *   A **Function App** (Consumption Plan, Python runtime).
+2.  **Configure OpenAI:** In the Azure OpenAI Studio, create the two required Assistants (`CV-PII-Identifier` and `CV-Skills-Analyst`) using the prompts and JSON schemas from the project documentation. Note their Assistant IDs.
+3.  **Configure Function App:**
+    *   Navigate to the Function App's **Configuration** blade.
+    *   Under "Application settings," create and populate all required environment variables as defined in the `ai-processing-azure-functions/README.md` file (e.g., `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `ASSISTANT_ID_...`). This is the secure way to manage secrets.
+4.  **Deploy the Code:** Deploy the Python code from the `ai-processing-azure-functions` folder to the newly created Function App using the recommended VS Code extension or a CI/CD pipeline.
+5.  **Get the Function URL:** Navigate to the `ProcessCV` function, click **"Get Function Url"**, and copy the full URL, including the `?code=...` key.
+
+### 3.3. Power Platform Deployment (The Orchestrator)
+
+1.  **Create SharePoint Assets:** On the target SharePoint site, manually create all required lists and the `CV Intake` document library. The column names and data types must **exactly match** the specifications in the `02-Solution-Architecture.md` document.
+2.  **Configure Connections:** In the target Power Platform environment, create all necessary connections (SharePoint, Office 365, Teams) using the **Service Account**.
+3.  **Import the Solution:**
+    *   Navigate to **Solutions** and click **Import**.
+    *   Upload the latest **managed** solution `.zip` file from the repository's "Releases" section.
+    *   **CRITICAL:** During the import wizard, you will be prompted to configure the **Connection References**. For each reference, you must map it to the corresponding connection you pre-configured with the Service Account.
+4.  **Configure Environment Variables:**
+    *   After the solution is imported, you will be prompted to configure any Environment Variables. The most critical one will be the URL for the Azure Function.
+    *   **Update `AzureFunctionUrl`:** Paste the Function URL you copied from the Azure Portal.
+5.  **Populate the `Configuration` List:** The SharePoint `Configuration` list will be empty. Manually populate it with the production data for VPs, the HR Manager, and all SLA day counts.
+6.  **Turn On the Flows:** By default, all flows are turned off. Manually **Turn On** each flow, starting with the system/listener flows (`MPR-09`, `MPR-05`, etc.) and finishing with the main transactional flows.
+
+---
+
+## 4. Maintenance and Operations
+
+### 4.1. Routine Administrative Tasks (No Code Change)
+
+These are tasks that the designated Business Process Owner (e.g., the HR Manager) can perform.
+
+| Scenario | Procedure | Tool Used |
+| :--- | :--- | :--- |
+| **An Approver Changes** (e.g., new VP) | Edit the relevant item in the `Configuration` list and update the "Account" field. | SharePoint List |
+| **An SLA Needs Adjustment** | Edit the relevant `SLA - ...` item in the `Configuration` list and update the "Value" field. | SharePoint List |
+| **A New HR Rep Joins the Team**| If using the (old) interactive assignment, add them to the `Configuration` list. If using the current rule-based assignment, this is a code change (see below).| SharePoint List |
+
+### 4.2. Code-Level Changes (Requires a Full ALM Cycle)
+
+Any change to a Power Automate flow or the Azure Function code is a code-level change and **must** follow the formal "Dev -> Test -> Prod" lifecycle.
+
+**Example Scenario: Change the rule-based HR assignment in `MPR-02a`.**
+
+1.  **Development Environment:**
+    *   The developer makes the change in the `MPR-02a` flow within the unmanaged solution in the **Dev environment**.
+    *   The developer updates the relevant documentation (`02-Architecture`, `03-Technical-Breakdown`) in a new Git branch.
+2.  **Testing:** The change is thoroughly tested in the Dev environment.
+3.  **Packaging:** The entire solution is exported from Dev as a **Managed Solution** with an incremented version number.
+4.  **Deployment:** The new managed solution is imported into the **Production environment**, which will overwrite the existing solution and deploy the updated version of the flow.
+5.  **Source Control:** The documentation and any exported flow definitions are merged into the `main` branch in GitHub.
+
+### 4.3. Monitoring and Troubleshooting
+
+#### Monitoring Flow Run History
+-   **Primary Tool:** The Power Automate portal's "Cloud flow activity" page and the run history for each individual flow.
+-   **Cadence:** The System Administrator should perform a daily check of the previous day's run history for the critical scheduled flows (`MPR-SYS-MonitorSLAs` and `MPR-SYS-SendHMReviewDigest`) to proactively identify any failures.
+-   **Failure Alerts:** The flow owner (the Service Account) will automatically receive an email notification if a flow fails a certain number of times consecutively. These alerts must be actioned immediately.
+
+#### Troubleshooting a Failed Flow
+1.  **Identify the Failure:** In the flow's run history, click on the failed run.
+2.  **Locate the Error:** The flow designer will show a red exclamation mark `(!)` on the failed action.
+3.  **Examine Inputs and Outputs:** Click the failed action. The `error` message in the `OUTPUTS` section will provide the technical reason for the failure (e.g., "Item not found," "404 Not Found" for an HTTP call, "Access Denied").
+4.  **Consult the Documentation:** Refer to the `03-Technical-Flow-Breakdown.md` to understand what the failed action was supposed to do.
+5.  **Formulate a Plan:**
+    *   **Data Issue:** If the error was caused by bad data (e.g., a manager tried to schedule an interview without an end time), the data should be corrected in the SharePoint list, and the flow run can be **Resubmitted**.
+    *   **Permissions Issue:** If the error is "Access Denied," verify the Service Account's permissions on the relevant SharePoint site or other resource.
+    *   **Transient Issue:** For temporary network or service glitches, using the **Resubmit** button is appropriate.
+    *   **Code/Logic Error:** If the flow's logic is flawed, this requires a full ALM cycle to fix in Dev and redeploy.
+
+## 5. Backup and Recovery
+
+-   **Flow & App Definitions:** The **GitHub repository is the primary backup** for the solution's logic and structure. The exported flow JSON files and the Azure Function code represent a definitive point-in-time snapshot.
+-   **Data:** All transactional data resides in SharePoint Online. Standard SharePoint data recovery procedures apply (Version History, Recycle Bin). It is recommended to configure a formal backup policy for the SharePoint site if one is not already in place.
+-   **Solution Backup:** A best practice is to perform a manual export of the **managed solution** from the Production environment on a regular cadence (e.g., monthly or quarterly) and store the `.zip` file in a secure location as a disaster recovery artifact.
