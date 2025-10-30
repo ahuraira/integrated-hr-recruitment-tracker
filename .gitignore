@@ -33,6 +33,9 @@ report.json
 *.log
 logs/
 
+# Flows
+flows/
+
 # Temporary files
 *.tmp
 *.temp

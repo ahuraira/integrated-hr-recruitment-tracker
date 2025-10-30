@@ -2,197 +2,279 @@
 
 ## 1. Introduction
 
-This document provides a detailed architectural overview of the Manpower Requisition (MPR) Automation Suite. It is intended for a technical audience, including architects, developers, and system administrators, who need to understand *how* the solution is constructed, the relationships between its components, and the design principles that govern its operation.
-
-While the [Business Process Overview](./01-Business-Process-Overview.md) explains *what* the system does, this document explains *how* it does it.
+This document provides a detailed architectural overview of the Manpower Requisition (MPR) Automation Suite. It is intended for a technical audience who need to understand *how* the solution is constructed, the relationships between its components, and the design principles that govern its operation.
 
 ## 2. Core Architectural Principles
 
-The design of this solution is guided by four key principles to ensure it is robust, scalable, and maintainable.
+The design of this solution is guided by key principles to ensure it is robust, scalable, and maintainable.
 
-1.  **Decoupled & Modular Flows:** Each Power Automate flow is designed to perform a specific, isolated business function (e.g., "Initiation & Approval", "HR Assignment"). This modularity prevents the creation of a single, monolithic flow, making the system easier to debug, test, and enhance.
-2.  **Event-Driven Logic:** The entire end-to-end process is orchestrated through events, which are either **system-driven** (a status change in a SharePoint list) or **user-driven** (an HR Rep selecting an option in the `"Next Action (Trigger)"` field).
-3.  **Centralized Configuration:** Business rules and key personnel data (e.g., VP/EVP approvers, HR Team members) are not hard-coded within the flows. They are stored in a dedicated SharePoint "Configuration" list, allowing administrators to update critical parameters without modifying and redeploying the automation logic.
-4.  **Relational Data Model:** SharePoint lists are used as a relational database. Relationships between entities (Requisitions, Candidates, Interviews) are maintained using lookup columns, and a strict key management strategy ensures data integrity.
+1.  **Hybrid Architecture:** The solution leverages a "best-of-breed" approach, combining the strengths of the **Microsoft Power Platform** for orchestration, user interaction, and state management, with **Azure Functions (Python)** for complex, high-performance data processing and AI integration.
+2.  **Decoupled & Modular Flows:** Each Power Automate flow is designed to perform a specific business function (e.g., "HR Assignment," "SLA Monitoring"). This modularity prevents the creation of monolithic flows and simplifies maintenance.
+3.  **Event-Driven Logic:** The end-to-end process is orchestrated through status changes and user actions in SharePoint, creating a resilient and logical "state machine."
+4.  **Centralized Configuration:** Business rules (SLA days) and key personnel (VPs, HR Manager) are stored in a dedicated SharePoint `Configuration` list, allowing for administrative updates without code changes.
+5.  **Secure by Design:** The system enforces a "need-to-know" security model through the automated application of **item-level permissions** on all MPR and Candidate records.
 
 ## 3. Technology Stack
 
-The solution is built exclusively within the Microsoft Power Platform ecosystem.
-
-| Component                   | Technology            | Purpose                                                                                |
-| :-------------------------- | :-------------------- | :------------------------------------------------------------------------------------- |
-| **Automation Engine**         | Power Automate        | Hosts the core business logic, integrations, and orchestration for the entire process.   |
-| **Data Backend**            | SharePoint Online     | Provides the relational data storage through a series of structured lists.             |
-| **User Input & Interaction** | Microsoft Forms, Teams, Outlook | Offer native, user-friendly interfaces for data entry, approvals, and notifications. |
-| **File Handling**           | OneDrive for Business | Manages file attachments submitted through Microsoft Forms before they are moved to SharePoint. |
+| Component | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Orchestration Engine** | Power Automate | Hosts the core business logic, triggers, and orchestration for the entire process. |
+| **Data Backend** | SharePoint Online | Provides the relational data storage through a series of structured lists. |
+| **Intelligent Processing** | **Azure Functions (Python)** | **The "Pro-Code" Engine.** Performs heavy-lifting tasks: robust document parsing, AI/LLM API calls, and complex data transformation. |
+| **Artificial Intelligence**| **Azure OpenAI Service** | Provides the GPT models for CV data extraction and analysis. |
+| **User Interaction** | MS Forms, Teams (Adaptive Cards), Outlook | Offer native, user-friendly interfaces for data entry, approvals, and notifications. |
+| **File Management** | SharePoint Document Libraries | Manages the lifecycle of CV documents in a structured folder system. |
 
 
 ## 4. SharePoint Data Model
 
-The foundation of the solution is a set of four interconnected SharePoint lists designed to function as a relational database.
+The foundation of the solution is a set of interconnected SharePoint lists designed to function as a relational database.
 
 ### 4.1. Entity Relationship Diagram (ERD)
-
-The following diagram illustrates the relationships between the core data tables (SharePoint Lists), now including the critical user control field.
 
 ```mermaid
 erDiagram
     MPR_Tracker ||--|{ Candidate_Tracker : "has"
-    Candidate_Tracker ||--|{ Interview_Tracker : "undergoes"
-    Interview_Tracker ||--|{ Interview_Feedback_Tracker : "generates"
+    Candidate_Tracker ||--|{ Interview_Schedule : "undergoes"
+    Candidate_Tracker ||--|{ AI_Log : "records"
+    Interview_Schedule ||--|{ Interview_Feedback : "generates"
+    Configuration {}
 
     MPR_Tracker {
-        int ID PK "SharePoint Primary Key"
-        string RequisitionID UK "Business Key (e.g., MPR-TTE-001)"
-        string Status "System Control Field"
-        string Title
-        string BusinessUnit
-        int Grade
+        int ID PK
+        string RequisitionID UK
+        string Status
+        person Requester
+        person HiringManager
+        person AssignedTo
+        person VPEmail
+        datetime MPRApprovalDate
+        datetime TargetApprovalDate
+        string ApprovalSLAStatus
+        datetime TargetSourcingDate
+        string SourcingSLAStatus
     }
     Candidate_Tracker {
-        int ID PK "SharePoint Primary Key"
-        int RequisitionID_ID FK "Lookup to MPR_Tracker"
-        string CandidateID UK "Business Key (e.g., MPR-TTE-001-C01)"
-        string Status "System Control Field"
-        string NextAction_Trigger "User Control Field"
-        string Title "Candidate Name"
+        int ID PK
+        int RequisitionID_ID FK
+        string CandidateID UK
+        string Status
+        string NextAction_Trigger
+        person AssignedHRRecruiter
+        person HiringManager_s_
+        datetime DateShortlisted
+        datetime TargetShortlistingDate
+        string ShortlistingSLAStatus
+        datetime TargetSchedulingDate
+        string SchedulingSLAStatus
+        datetime TargetHRSelectionDate
+        string HRSelectionSLAStatus
+        datetime TargetOfferReleaseDate
+        string OfferReleaseSLAStatus
     }
-    Interview_Tracker {
-        int ID PK "SharePoint Primary Key"
-        int CandidateID_ID FK "Lookup to Candidate_Tracker"
-        string FeedbackStatus "System Control Field"
-        string Title "Interview Title"
+    AI_Log {
+        int ID PK
+        int CandidateID_ID FK
+        string Stage
+        string ModelUsed
+        int InputTokens
+        int OutputTokens
+        decimal ProcessingTimems
+        string AssistantID
+        string SourceFileName
+        bool Success
+    }
+    Interview_Schedule {
+        int ID PK
+        int CandidateID_ID FK
+        string FeedbackStatus
         datetime NextInterviewDate
+        datetime Interview_End_Time
+        datetime TargetFeedbackDate
+        string FeedbackSLAStautus
+        person InterviewPanel
     }
-    Interview_Feedback_Tracker {
-        int ID PK "SharePoint Primary Key"
-        int InterviewReference_ID FK "Lookup to Interview_Tracker"
-        string Recommendation "System Control Field"
-        string DetailedFeedback
+    Interview_Feedback {
+        int ID PK
+        int InterviewReference_ID FK
+        string Recommendation
+        bool TreatasFinalFeedback
         person Interviewer
+    }
+    Configuration {
+        string Title PK
+        string Value
+        person Account
     }
 ```
 
 ### 4.2. List Definitions
 
-#### 1. MPR Tracker (`d72807b7-95af-4b7b-9987-20647d0037f1`)
-The master list for all manpower requisitions. It is the single source of truth for the status and details of any hiring request.
--   **Primary Key:** `ID` (System-generated SharePoint integer).
--   **Business Key:** `RequisitionID` (Calculated, human-readable ID).
--   **Control Field:** `Status` (e.g., "MPR Approved", "CV Sourcing"). This field primarily drives **system-to-system** automation handoffs.
+#### 1. `MPR Tracker`
+The master list for all manpower requisitions.
 
-#### 2. Candidate Tracker (`708a7843-8d42-4004-933a-6e235d113e6f`)
-This list contains a record for every candidate being considered for a position.
--   **Foreign Key:** `RequisitionID` (Lookup to the `MPR Tracker` list, establishing a one-to-many relationship).
--   **Business Key:** `CandidateID` (Calculated, human-readable ID).
--   **Control Fields:**
-    -   `Status`: Reflects the candidate's current state in the pipeline (e.g., "Shortlisted", "Interview Process Ongoing").
-    -   `NextAction_Trigger`: **This is the primary user control field.** The HR Representative selects a value here (e.g., "Schedule Next Interview", "Request Offer Approval") to command the system to perform a specific action.
+| Column Name | Data Type | Purpose & Notes |
+| :--- | :--- | :--- |
+| Title, BusinessUnit, Grade, etc. | Various | Core details from the MS Form submission. |
+| **RequisitionID** | Single line of text | The unique, system-generated business key (e.g., `MPR-EC-024`). |
+| **Status** | Choice | The primary lifecycle state of the requisition (e.g., `MPR Form Submitted`, `MPR Approved`, `CV Sourcing`, `Hiring Complete`). |
+| Requester, HiringManager, AssignedTo | Person | Key personnel associated with the requisition. |
+| **MPRApprovalDate** | Date/Time | Timestamp for when the final approval was received. |
+| **TargetApprovalDate** | Date/Time | The calculated SLA target date for the initial approval. |
+| **ApprovalSLAStatus** | Choice | State tracker for the Approval SLA (`On Track`, `Warning Sent`, etc.). |
+| **TargetSourcingDate**| Date/Time | The calculated SLA target date for sourcing to begin. |
+| **SourcingSLAStatus** | Choice | State tracker for the Sourcing SLA. |
+| *PositionsFilled, AvgTimeToFill, etc.*| Number | Aggregated KPI fields updated by the `UpdateMPRAggregates` flow. |
 
-#### 3. Interview Tracker (`5a2899d6-458a-4865-a81b-8657be01c4fa`)
-This list logs every scheduled interview event for a candidate.
--   **Primary Key:** `ID` (System-generated SharePoint integer).
--   **Foreign Key:** `CandidateID` (Lookup to the `Candidate Tracker` list).
--   **Control Field:** `FeedbackStatus` (e.g., "Pending", "Requests Sent", "Received").
 
-#### 4. Interview Feedback Tracker (`3cb57c8b-b3f3-4a1f-b1c1-d35e5dec7169`)
-This list captures the detailed feedback provided by each interviewer.
--   **Primary Key:** `ID` (System-generated SharePoint integer).
--   **Foreign Key:** `InterviewReference` (Lookup to the `Interview Tracker` list).
--   **Control Field:** `Recommendation` (e.g., "Recommend to Proceed").
+#### 2. `Candidate Tracker`
+Contains a record for every candidate being considered for a position.
 
-## 5. Key Management and Relational Integrity
+| Column Name | Data Type | Purpose & Notes |
+| :--- | :--- | :--- |
+| Title (Candidate Name), Email, Phone, etc. | Various | Core candidate profile details, mostly populated by the AI engine. |
+| **RequisitionID** | Lookup | Foreign key linking the candidate to the parent `MPR Tracker` item. |
+| **CandidateID** | Single line of text | The unique, system-generated business key (e.g., `MPR-EC-024-C01`). |
+| **Status** | Choice | The primary lifecycle state of the candidate (e.g., `Sourced`, `Pending HM Review`, `Shortlisted`, `Interview Process Ongoing`). |
+| **NextAction_Trigger** | Choice | **The primary user control field** for the HR Representative (e.g., `Schedule Next Interview`). |
+| DateShortlisted, DateofInterviewEvaluationForm, etc. | Date/Time | Key milestone timestamps in the candidate's journey. |
+| **TargetShortlistingDate**| Date/Time | Calculated SLA target date for the HM to review the candidate. |
+| **ShortlistingSLAStatus**| Choice | State tracker for the Shortlisting SLA. |
+| *(...and so on for all other `Target...Date` and `...SLAStatus` columns)* | | |
 
-A precise key management strategy is essential for the system's reliability. The system uses a combination of system-generated primary keys, human-readable business keys, and lookup columns (foreign keys) to maintain relationships.
+#### 3. `Interview Schedule`
+Logs every scheduled interview event. One row per interview.
 
-| List Name                    | Primary Key (PK)      | Business Key (Unique ID) | Foreign Key (FK)                 | Relationship Established                                |
-| :--------------------------- | :-------------------- | :----------------------- | :------------------------------- | :------------------------------------------------------ |
-| **MPR Tracker**              | `ID` (SharePoint Int) | `RequisitionID`          | N/A                              | Master Table                                            |
-| **Candidate Tracker**        | `ID` (SharePoint Int) | `CandidateID`            | `RequisitionID` -> MPR Tracker `ID` | Links a candidate to a single requisition.              |
-| **Interview Tracker**        | `ID` (SharePoint Int) | N/A                      | `CandidateID` -> Candidate Tracker `ID` | Links an interview event to a single candidate.       |
-| **Interview Feedback Tracker** | `ID` (SharePoint Int) | N/A                      | `InterviewReference` -> Interview Tracker `ID` | Links a feedback entry to a single interview event. |
+| Column Name | Data Type | Purpose & Notes |
+| :--- | :--- | :--- |
+| **CandidateID** | Lookup | Foreign key linking the interview event to the `Candidate Tracker`. |
+| **FeedbackStatus** | Choice | The state of the feedback collection process (`Pending`, `Requests Sent`, `Received`). |
+| NextInterviewDate, Interview_End_Time | Date/Time | The start and end time of the scheduled interview. |
+| **TargetFeedbackDate**| Date/Time | The calculated SLA target date for feedback collection. |
+| **FeedbackSLAStautus**| Choice | State tracker for the Feedback Collection SLA. |
+| InterviewPanel | Person (multi-select)| The individuals invited to the interview. |
 
-**Crucially, all `GetItem` or `PatchItem` operations in Power Automate use the SharePoint list's integer `ID` (the Primary Key) to reference items, ensuring unambiguous updates.** The Business Keys (`RequisitionID`, `CandidateID`) are generated and used for display, search, and human-readable tracking only.
+#### 4. `Interview Feedback`
+Captures the detailed feedback from each individual interviewer.
+
+| Column Name | Data Type | Purpose & Notes |
+| :--- | :--- | :--- |
+| **InterviewReference**| Lookup | Foreign key linking the feedback to the specific `Interview Schedule` event. |
+| Interviewer | Person | The individual who submitted this feedback. |
+| Recommendation | Choice | The key decision from the interviewer (e.g., `Recommend to Proceed`). |
+| **TreatasFinalFeedback**| Yes/No | A checkbox for the HR Rep to designate this as the definitive feedback, triggering the finalization flow. |
+
+#### 5. `AI Log`
+Provides a tamper-evident audit trail of every AI interaction during CV ingestion.
+
+| Column Name | Data Type | Purpose & Notes |
+| :--- | :--- | :--- |
+| **CandidateID** | Lookup | Links the telemetry record back to the originating candidate profile. |
+| Stage | Choice/Text | Identifies the logical step within the AI pipeline (e.g., `Extraction`, `Summarisation`). |
+| ModelUsed | Single line of text | Records the assistant/model invoked for traceability. |
+| InputTokens / OutputTokens | Number | Captures token counts for cost tracking and capacity planning. |
+| ProcessingTimems | Number | Millisecond duration for the AI call, useful for performance monitoring. |
+| AssistantID | Single line of text | Stores the specific assistant identifier used in Azure OpenAI. |
+| Success | Yes/No | Indicates whether the call completed successfully. |
+| ErrorMessages | Multiple lines of text | Persisted only when `Success` is false, helping with postmortems. |
+| SourceFileName | Single line of text | The CV file name tied to the processing event. |
+
+### 5. Key Management and Relational Integrity
+
+| List Name | Primary Key (PK) | Business Key (Unique ID) | Foreign Key (FK) | Relationship Established |
+| :--- | :--- | :--- | :--- | :--- |
+| **MPR Tracker** | `ID` (SharePoint Int) | `RequisitionID` | N/A | Master Table |
+| **Candidate Tracker** | `ID` (SharePoint Int) | `CandidateID` | `RequisitionID` -> MPR Tracker `ID` | Links a candidate to a single requisition. |
+| **Interview Schedule** | `ID` (SharePoint Int) | N/A | `CandidateID` -> Candidate Tracker `ID` | Links an interview event to a single candidate. |
+| **Interview Feedback** | `ID` (SharePoint Int) | N/A | `InterviewReference` -> Interview Schedule `ID` | Links a feedback entry to a single interview event. |
+| **AI Log** | `ID` (SharePoint Int) | N/A | `CandidateID` -> Candidate Tracker `ID` | Stores per-call AI telemetry tied back to the originating candidate. |
+
+**Crucially, all `GetItem` or `Update item` operations in Power Automate use the SharePoint list's integer `ID` (the Primary Key) to reference items, ensuring unambiguous updates.** The Business Keys (`RequisitionID`, `CandidateID`) are generated and used for display, search, and human-readable tracking only.
 
 ## 6. Solution Components and Orchestration
 
 ### 6.1. High-Level Architecture Diagram
 
-The logic is encapsulated in six distinct flows. The diagram below shows how control is passed from one flow to another via status updates in SharePoint.
-
 ```mermaid
 graph TD
-    subgraph User Interaction
-        U1(Requester)
-        U2(HR Manager)
-        U3(HR Rep)
-        U4(Interviewer)
+    subgraph User & Input
+        A[Requester] --> B(MS Form);
+        C[HR Representative] --> D[SP DocLib: CV Intake];
     end
 
-    subgraph Power Automate Flows
-        F1(Flow 1: Initiation/Approval)
-        F2(Flow 2: HR Assignment)
-        F3(Flow 3: Candidate Lifecycle)
-        F4(Flow 4: Trigger Post-Interview Actions)
-        F5(Flow 5: Capture Feedback)
-        F6(Flow 6: Transfer Feedback)
+    subgraph Power Platform - Power Automate
+        B -- Triggers --> F1(MPR-01: Approval);
+        F1 -- Creates & Updates --> SP1[(MPR Tracker)];
+        
+        SP1 -- Status: 'Approved' --> F2(MPR-02a: Assignment);
+        F2 -- Updates --> SP1;
+        F2 -- Creates Folders --> D;
+        
+        D -- File Creation Triggers --> F8(MPR-08: AI Ingestion);
+        F8 -- Calls --> AZ1[Azure Function];
+        AZ1 -- Returns JSON --> F8;
+        F8 -- Creates --> SP2[(Candidate Tracker)];
+    F8 -- Logs --> SP5[(AI Log)];
+        
+        F_HM(MPR-SYS: Send HM Digest) -- Runs Daily --> SP2;
+        F_HM -- Posts Card --> Teams;
+        Teams -- User Action Triggers --> F9(MPR-09: Process HM Decision);
+        F9 -- Updates --> SP2;
+        
+        U_HR[HR Rep] -- Sets 'Next Action' --> SP2;
+        SP2 -- 'Next Action' Triggers --> F3(MPR-03: Lifecycle);
+        F3 -- Creates --> SP3[(Interview Schedule)];
+        
+        SP3 -- Interview Complete, Triggers --> F4(MPR-04: Trigger Feedback);
+        F4 -- Creates --> SP4[(Interview Feedback)];
+        F4 -- Sends Links --> Interviewer;
+        Interviewer -- Submits Form --> F5(MPR-05: Capture Feedback);
+        F5 -- Updates --> SP4;
+        
+        U_HR -- Sets 'Final Feedback' Flag --> SP4;
+        SP4 -- Flag Change Triggers --> F6(MPR-06: Transfer Feedback);
+        F6 -- Updates --> SP2 & SP3;
     end
 
-    subgraph SharePoint Data Store
-        SP1[(MPR Tracker)]
-        SP2[(Candidate Tracker)]
-        SP3[(Interview Tracker)]
-        SP4[(Feedback Tracker)]
+    subgraph System Governance
+        F_SLA(MPR-SYS: Monitor SLAs) -- Runs Daily, Reads All Lists --> F_SLA;
+        F_SLA -- Sends --> Notifications;
+        
+        F_KPI(MPR-SYS: Update Aggregates) -- Triggers on Candidate Change --> SP2;
+        F_KPI -- Calculates & Updates --> SP1;
     end
-
-    %% -- Flow Paths --
-    U1 -- Submits MS Form --> F1
-    F1 -- Creates/Updates --> SP1
-
-    SP1 -- Status: 'Approved' --> F2
-    F2 -- Posts to Teams --> U2
-    U2 -- Assigns Rep --> F2
-    F2 -- Updates --> SP1
-
-    U3 -- Adds Candidate --> SP2
-    SP2 -- OnCreate --> F3
-    F3 -- Updates Candidate ID --> SP2
-    U3 -- Sets 'Next Action' field --> SP2
-
-    SP2 -- Next Action: 'Schedule Interview' --> F3
-    F3 -- Creates --> SP3
-
-    SP3 -- Daily Check on Date --> F4
-    F4 -- Creates Records --> SP4
-    F4 -- Sends Email Links --> U4
-
-    U4 -- Submits MS Form --> F5
-    F5 -- Updates --> SP4
-
-    SP4 -- OnUpdate --> F6
-    F6 -- Updates --> SP3
-    F6 -- Updates --> SP2
+    
+    subgraph Azure Pro-Code
+        AZ1(Python AI Engine);
+        AZ1 -- Calls --> AZ2[Azure OpenAI];
+    end
 ```
 
-### 6.2. Orchestration and Control Mechanism: The "Reset to Idle" Pattern
 
-The system's control logic is sophisticated and relies on two distinct types of triggers:
+### 5.2. Orchestration and Control Mechanism
 
-1.  **System-Driven Triggers:** These are automated handoffs based on a `Status` field changing. For example, when Flow 1 sets the `MPR Tracker` status to "Approved," it acts as a signal for Flow 2 to begin. This is used for process stages that have no required user intervention.
+The system uses a sophisticated event-driven model:
 
-2.  **User-Driven Triggers:** These actions are explicitly initiated by a user, primarily the HR Representative. This is managed through the **`Next Action (Trigger)`** column in the `Candidate Tracker` list. The HR Rep makes a selection, and a flow (like Flow 3) is conditioned to only run a specific branch of logic when that value is set.
+1.  **System-Driven Triggers:** Automated handoffs based on a `Status` field changing in SharePoint. This orchestrates the main phases of the process (e.g., `MPR Approved` triggers the assignment flow).
 
-A critical design pattern used throughout the solution is to **reset the `Next Action (Trigger)` field back to a neutral state like "Waiting for Input"** after the corresponding flow has successfully executed its task.
+2.  **File-Driven Triggers:** The creation of a CV file in the `CV Intake` library is the event that triggers the entire AI processing pipeline.
 
-**Why this is important:**
--   **Prevents Re-triggering:** It ensures that an action (e.g., "Schedule Interview") isn't accidentally run multiple times.
--   **Provides Clear State:** It makes the system's state unambiguous. A status of "Waiting for Input" clearly indicates that the automation has completed its last command and is now idle, awaiting the next instruction from the user.
--   **Hands Control Back to the User:** This pattern firmly establishes the HR Representative as the driver of the process, with the automation acting as a powerful assistant that executes commands on demand.
+3.  **User-Driven Triggers:** The **`Next Action (Trigger)`** column in the `Candidate Tracker` list acts as a "control panel" for the HR Representative, allowing them to command the system to perform specific actions like scheduling interviews.
 
-## 7. Connections and Security
+4.  **Time-Driven Triggers:** Scheduled flows (`Monitor SLAs`, `Send HM Digest`) run on a fixed cadence (daily) to perform proactive monitoring and batch notifications.
 
--   **Connection References:** The solution utilizes Power Platform Connection References. This is a best practice that decouples the flows from the specific user connections. It allows the solution to be deployed to different environments (e.g., Dev, Production) and have the connections re-mapped to a dedicated service account without editing the flows themselves.
--   **Security Context:** All flows are configured to run under the context of a dedicated service account, not a personal user account. This ensures business continuity if an employee changes roles or leaves the organization and prevents failures due to personal password changes. SharePoint list permissions are configured to grant appropriate access levels to different user roles.
+5.  **Telemetry & Audit Logging:** As part of every AI-assisted ingestion, the system captures a detailed telemetry record (stage, model, token usage, duration, success flag) in the `AI Log` list. This feeds compliance reporting, cost tracking, and troubleshooting without rerunning the original CV processing.
+
+## 6. Security Architecture: Item-Level Permissions
+
+A critical feature of this architecture is its "Secure by Design" approach. The system does not rely on simple filtered views for security.
+
+-   **Principle:** A true "need-to-know" model is enforced.
+-   **Mechanism:** The transactional flows (`MPR-01` and `MPR-03`) contain dedicated steps (`Stop sharing...` and `Grant access...`) that run immediately after an item is created.
+-   **Process:**
+    1.  The flow first **breaks the permission inheritance** of the new SharePoint item, making it private to only administrators.
+    2.  It then **explicitly grants** `View` or `Edit` permissions only to the specific individuals associated with that item (e.g., the Requester, the assigned HR Rep, the Hiring Manager, and the VPs).
+-   **Result:** A user navigating directly to the list URL will only ever see the items they have been explicitly granted access to. This provides a robust and auditable security model that prevents any unauthorized data access.
 
 ---
-_This document describes the architectural foundation. For a detailed, step-by-step breakdown of the logic within each flow, please refer to the [03-Technical-Flow-Breakdown.md](./03-Technical-Flow-Breakdown.md)._
+_This document describes the architectural foundation. For a detailed, step-by-step breakdown of the logic within each component, please refer to the [03-Technical-Flow-Breakdown.md](./03-Technical-Flow-Breakdown.md) and the README within the `ai-processing-azure-functions` project folder._

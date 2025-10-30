@@ -1,113 +1,124 @@
-# Manpower Requisition (MPR) Automation Suite
+# Manpower Requisition (MPR) Automation Suite & Talent Intelligence Engine
 
 ![Status: Active](https://img.shields.io/badge/status-active-success.svg)
-![Version: 1.0.0](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version: 2.0.0](https://img.shields.io/badge/version-2.0.0-blue.svg)
 [![Documentation](https://img.shields.io/badge/documentation-complete-brightgreen.svg)](./docs/01-Business-Process-Overview.md)
 
-This repository contains the full automation solution and documentation for the TTE Integrated HR Recruitment Tracker. The suite leverages the Microsoft Power Platform to streamline and automate the end-to-end Manpower Requisition (MPR) process, from initial request and multi-level approvals to candidate lifecycle management and interview feedback consolidation.
+This repository contains the full automation solution and documentation for the TTE Integrated HR Recruitment Tracker. The suite leverages the Microsoft Power Platform and Azure AI to create a comprehensive, enterprise-grade system that manages the entire recruitment lifecycle—from initial request and multi-level approvals to AI-powered CV processing, candidate management, and proactive SLA monitoring.
 
 ## Business Value Proposition
 
-This solution was designed not just to automate tasks, but to deliver strategic value to the organization by:
+This solution delivers strategic value to the organization by:
 
--   **Enhancing Efficiency:** Drastically reduces manual data entry, email follow-ups, and administrative overhead for the HR team and hiring managers.
--   **Providing Full Transparency:** Creates a centralized, real-time view of every requisition's status, eliminating information silos and providing clarity to all stakeholders.
--   **Enforcing Governance & Compliance:** Standardizes the approval process, ensuring that the correct hierarchical approvals (VP, EVP) are obtained based on predefined business rules (e.g., position grade).
--   **Improving Data Integrity:** Establishes a single source of truth in SharePoint, reducing errors that arise from managing processes across multiple spreadsheets and email chains.
--   **Accelerating Time-to-Hire:** By automating bottlenecks like approvals and feedback requests, the solution helps reduce the overall time it takes to fill a position.
+-   **AI-Powered Efficiency:** Drastically reduces manual data entry by using an AI engine to parse CVs, extract key information, and create standardized candidate profiles automatically.
+-   **Enforcing Governance & Security:** Implements a rule-based approval workflow, conditional logic for EVP approvals based on grade, and a robust **item-level permissions model** to ensure strict data confidentiality.
+-   **Providing Full Transparency & Insights:** Creates a centralized, real-time view of every requisition and candidate. A powerful KPI aggregation engine calculates key metrics like Time-to-Fill, providing actionable data for process improvement.
+-   **Accelerating Time-to-Hire:** By automating bottlenecks like approvals, CV screening, and interview scheduling, and by proactively monitoring SLAs with a "guardian" flow, the solution minimizes delays at every stage.
+-   **Improving User Experience:** Provides a best-in-class, interactive experience for Hiring Managers to review and shortlist candidates directly within Microsoft Teams.
 
 ## High-Level Process Flow
 
-The diagram below illustrates the end-to-end journey of a manpower requisition as it moves through the automated system.
+The diagram below illustrates the end-to-end journey of a requisition and its candidates as they move through the automated system.
 
 ```mermaid
 graph TD
-    subgraph "Phase 1: Initiation & Approval"
+    subgraph "Phase 1: Initiation & Approval (MPR-01)"
         A[Requester] -- Submits Request --> B(Microsoft Form);
-        B -- Triggers --> C{Flow 1: Initiation & Approval};
-        C -- Creates Item --> D[(SharePoint: MPR List)];
-        C -- Starts Approval --> E{VP Approval};
-        E -- Approved --> F{Condition: Grade > 15?};
-        F -- Yes --> G{EVP Approval};
-        F -- No --> H[Update Status: Approved];
-        G -- Approved --> H[Update Status: Approved];
+        B -- Triggers --> C{Flow: Initiation & Approval};
+        C -- Creates Item & Sets Permissions --> D[(SP: MPR Tracker)];
+        C -- Sets SLA Target Date --> D;
+        C -- Starts Approval --> E{VP/EVP Approval};
+        E -- Approved --> H[Update Status: MPR Approved];
         H -- Notifies --> A;
     end
 
-    subgraph "Phase 2: HR Assignment & Sourcing"
-        H -- Triggers on 'Approved' Status --> I{Flow 2: HR Assignment};
-        I -- Posts Adaptive Card --> J(Teams: HR Manager);
-        J -- Assigns Rep --> I;
-        I -- Updates Item with HR Rep --> D;
+    subgraph "Phase 2: Assignment & Workspace Provisioning (MPR-02a)"
+        H -- Status Change Triggers --> I{Flow: HR Assignment};
+        I -- Assigns HR Rep (Rule-Based) --> D;
+        I -- Creates Folders --> J[SP DocLib: CV Intake];
         I -- Notifies --> K[Assigned HR Rep];
-        K -- Begins Sourcing & Adds Candidate --> L[(SharePoint: Candidates List)];
     end
 
-    subgraph "Phase 3: Candidate & Interview Lifecycle"
-        L -- Triggers --> M{Flow 3: Candidate Lifecycle};
-        M -- Generates Candidate ID & Updates --> L;
-        K -- Sets 'Schedule Interview' --> L;
-        L -- Triggers --> M;
-        M -- Creates Calendar Invites --> P[Interview Panel];
-        M -- Creates Log --> Q[(SharePoint: Interview Log)];
-        Q -- Triggers Daily Check --> N{Flow 4: Post-Interview Actions};
+    subgraph "Phase 3: AI-Powered CV Ingestion (MPR-08)"
+        K -- Drops CVs in Folder --> J;
+        J -- Triggers --> L{Flow: AI CV Ingestion};
+        L -- Calls --> M[Azure Function: AI Engine];
+        M -- Returns Structured Data --> L;
+        L -- Creates Profile & Sets Permissions --> N[(SP: Candidate Tracker)];
+        L -- Creates Audit Log --> O[(SP: AI Log)];
+        L -- Moves File --> J;
     end
 
-    subgraph "Phase 4: Feedback & Finalization"
-        N -- Sends Feedback Links --> P;
-        P -- Submits Feedback --> R(Microsoft Form);
-        R -- Triggers --> S{Flow 5: Capture Feedback};
-        S -- Updates --> T[(SharePoint: Feedback Log)];
-        S -- Triggers --> U{Flow 6: Transfer Feedback};
-        U -- Consolidates Feedback --> Q;
-        U -- Updates Candidate Status --> L;
+    subgraph "Phase 4: HM Review & Candidate Lifecycle"
+        P{Flow: Send HM Digest} -- Runs Daily --> N;
+        P -- Posts Interactive Card --> Q(Teams: Hiring Manager);
+        Q -- Submits Decision --> R{Flow: Process HM Decision};
+        R -- Updates --> N;
+        U[HR Rep] -- Sets 'Next Action' --> N;
+        N -- 'Next Action' Change Triggers --> T{Flow: Candidate Lifecycle};
+        T -- Creates Calendar Invites --> V[Interview Panel];
+        T -- Creates Log --> W[(SP: Interview Schedule)];
     end
+    
+    subgraph "System Governance (System Flows)"
+        X{Flow: Monitor SLAs} -- Runs Daily, Checks All Lists --> Y[Sends Warnings & Escalations];
+        Z{Flow: Update Aggregates} -- Triggers on Candidate Change --> N;
+        Z -- Calculates KPIs & Counts --> D;
+    end
+
 ```
 
 ## Technology Stack
 
-This solution is built entirely on the Microsoft Power Platform, ensuring seamless integration and security within our existing O365 environment.
+This solution uses a hybrid architecture, combining the strengths of the Power Platform for orchestration and Azure for specialized, high-performance processing.
 
--   **Automation Engine:** Power Automate
+-   **Orchestration Engine:** Power Automate
 -   **Data Backend:** SharePoint Online Lists
--   **User Interface (Input):** Microsoft Forms
--   **User Interface (Interaction):** Microsoft Teams (Adaptive Cards), Outlook (Approvals & Notifications)
--   **File Storage:** OneDrive for Business (for form attachments)
+-   **Intelligent Processing Engine:** **Azure Functions (Python)**
+-   **Artificial Intelligence:** **Azure OpenAI Service (GPT-4)**
+-   **User Input & Interaction:** Microsoft Forms, Microsoft Teams (Adaptive Cards), Outlook
 
 ## Repository Structure
 
-The project is organized to separate the flow definitions from the documentation, promoting a "Documentation as Code" methodology.
+The project is organized to separate the low-code Power Platform solution from the pro-code Azure Function, promoting a "Documentation as Code" methodology.
 
 ```bash
-/mpr-automation-suite/
-├── .gitignore
+/integrated-hr-recruitment-tracker/
 ├── README.md                 # You are here
 ├── CHANGELOG.md              # Log of all changes and versions
 │
 ├── flows/                    # Exported JSON definitions of each Power Automate flow
 │   ├── MPR-01-InitiationandApproval.json
-│   ├── MPR-02-HRAssignment.json
-│   └── ... (and so on for all 6 flows)
+│   ├── MPR-02a-HRAssignment.json
+│   └── ... (and so on for all flows)
 │
-└── docs/                     # Detailed documentation for all audiences
-    ├── 01-Business-Process-Overview.md
-    ├── 02-Solution-Architecture.md
-    ├── 03-Technical-Flow-Breakdown.md
+├── docs/                     # Detailed documentation for the Power Platform solution
+│   ├── 01-Business-Process-Overview.md
+│   ├── 02-Solution-Architecture.md
+│   ├── 03-Technical-Flow-Breakdown.md
     ├── 04-User-Guides.md
     └── 05-Deployment-and-Maintenance.md
+│
+└── ai-processing-azure-functions/  # Self-contained project for the Azure Function
+    ├── function_app.py
+    ├── shared_code/
+    │   ├── document_processor.py
+    │   └── openai_service.py
+    ├── tests/
+    └── README.md             # Dedicated README for the Azure Function
 ```
 
 ## Documentation Portal
 
-This README provides a high-level overview. For detailed information, please refer to the specific documents below.
+This README provides a high-level overview. For detailed information, please refer to the specific documents in the `/docs` folder. The Azure Function project contains its own separate, developer-focused documentation.
 
-| Document                                          | Target Audience                      | Description                                                                                             |
-| :------------------------------------------------ | :----------------------------------- | :------------------------------------------------------------------------------------------------------ |
-| **[Business Process Overview](./docs/01-Business-Process-Overview.md)** | **Business Stakeholders, Management** | Explains the end-to-end recruitment process in plain language, outlining the stages, business rules, and roles. |
-| **[Solution Architecture](./docs/02-Solution-Architecture.md)** | **Technical Leads, Architects**        | Details the technology stack, the SharePoint data model, and how the different system components interact. |
-| **[Technical Flow Breakdown](./docs/03-Technical-Flow-Breakdown.md)** | **Developers, Technical Support**      | Provides a deep dive into each Power Automate flow, explaining its trigger, logic, and key actions.        |
-| **[User Guides](./docs/04-User-Guides.md)**             | **End-Users (HR, Hiring Managers)**    | Step-by-step instructions with screenshots on how to use the system (e.g., submit a request, assign a rep). |
-| **[Deployment & Maintenance](./docs/05-Deployment-and-Maintenance.md)** | **IT Admins, Future Developers**       | Covers instructions for deploying the solution, configuring it, and performing routine maintenance tasks.     |
+| Document                                          | Target Audience                      | Description                                                              |
+| :------------------------------------------------ | :----------------------------------- | :----------------------------------------------------------------------- |
+| **[Business Process Overview](./docs/01-Business-Process-Overview.md)** | **Business Stakeholders, Management**| Explains the end-to-end recruitment process, business rules, and roles. |
+| **[Solution Architecture](./docs/02-Solution-Architecture.md)** | **Technical Leads, Architects**        | Details the technology, SharePoint data model, and component interactions. |
+| **[Technical Flow Breakdown](./docs/03-Technical-Flow-Breakdown.md)** | **Developers, Technical Support**      | A deep dive into each Power Automate flow, explaining its logic and key actions.|
+| **[User Guides](./docs/04-User-Guides.md)**             | **End-Users (HR, Hiring Managers)**    | Step-by-step instructions with screenshots on how to use the system.       |
+| **[Deployment & Maintenance](./docs/05-Deployment-and-Maintenance.md)** | **IT Admins, Future Developers**       | Covers deployment, configuration, and maintenance protocols.              |
 
 ## Key Contacts
 
@@ -116,9 +127,7 @@ This README provides a high-level overview. For detailed information, please ref
 
 ## How to Contribute
 
-This project adheres to a "Documentation as Code" philosophy, and we welcome contributions that improve the solution. All changes, whether to the flows or the documentation, must be managed through a GitHub Pull Request to ensure quality and consistency.
-
-For detailed instructions on the development workflow, branching strategy, and the mandatory documentation checklist, please see our **[Contribution Guidelines](./CONTRIBUTING.md)**.
+This project adheres to a "Documentation as Code" philosophy. All changes, whether to the flows or the documentation, must be managed through a GitHub Pull Request. For detailed instructions, please see our **[Contribution Guidelines](./CONTRIBUTING.md)**.
 
 ---
 _This documentation is actively maintained. For the history of changes, please see the [CHANGELOG.md](./CHANGELOG.md)._
