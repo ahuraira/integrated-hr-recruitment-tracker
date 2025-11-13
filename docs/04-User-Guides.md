@@ -59,7 +59,7 @@ Once the HR team has sourced candidates, you will be asked to provide your feedb
 
 You have a personalized, on-demand dashboard to view the real-time status of all your active requisitions and candidates.
 
-1.  **Navigate to the Dashboard:** Open the **[Hiring Manager Dashboard](link-to-your-sharepoint-page)**.
+1.  **Navigate to the Dashboard:** Open the **[Hiring Manager Dashboard](https://algurguae.sharepoint.com/:u:/r/sites/IntegratedHRRecruitmentTracker/SitePages/HIRING-MANGER-DASHBOARD.aspx?csf=1&web=1&e=vJVVfA)**.
 2.  **View Your Items:** This page is automatically filtered to show **only the items relevant to you**. You will see a list of your open requisitions and all the candidates currently in the pipeline for those roles.
 3.  **Check the Status Columns:** The `Status` column for an MPR will tell you its overall state (e.g., `CV Sourcing`, `Hiring Complete`). The `Overall Status` for a candidate will tell you their specific stage (e.g., `Interview Process Ongoing`, `Offer Extended`).
 
@@ -292,3 +292,4 @@ This section provides answers to common questions and solutions to potential iss
 ---
 
 _This guide provides the foundation for managing the MPR Automation Suite. Always follow proper change management procedures when modifying the production environment._
+
