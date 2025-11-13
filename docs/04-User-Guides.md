@@ -26,7 +26,7 @@ As a Requester or Hiring Manager, your two primary interactions with the system 
 
 This is the first step in any hiring process.
 
-1.  **Open the Form:** Navigate to the official **[Manpower Requisition Form](https://forms.cloud.microsoft/r/jZbRTrDti4)**. We recommend bookmarking this link for easy access.
+1.  **Open the Form:** Navigate to the official **[Manpower Requisition Form](https://forms.office.com/r/izX9QU95Sr)**. We recommend bookmarking this link for easy access.
 2.  **Fill in Details:** Complete all fields accurately. The more detail you provide, the faster and more accurately HR can source candidates. Key fields include the **Job Title**, **Business Unit**, **Grade**, and a clear **Justification** for the new role.
 3.  **Attach Documents (Optional):** If you have a detailed Job Description or other relevant documents, please attach them using the "Upload file" button.
 4.  **Submit:** Click the **Submit** button.
@@ -39,9 +39,6 @@ This is the first step in any hiring process.
 Once the HR team has sourced candidates, you will be asked to provide your feedback directly within Microsoft Teams.
 
 1.  **Receive the "CVs Ready for Review" Digest:** On a daily or bi-daily basis, if there are new candidates for your review, the system will send you a single, consolidated "digest" card in a private chat from the "Power Automate" bot.
-
-    *(Insert screenshot of the digest card showing a candidate's details)*
-
 2.  **Review the AI-Powered Summary:** For each candidate listed, you will see key information that our AI engine has extracted, such as their current role, years of experience, and a confidence score. This is designed to give you a quick, at-a-glance summary.
 3.  **Take Action:** For each candidate, you have three options:
     *   **View Full CV:** Click this button to open the candidate's original CV in a new tab for a detailed review.
@@ -85,8 +82,6 @@ Your role is to provide timely strategic approval for new positions. The system 
     *   An email with the subject "New MPR Approval Request..."
     *   A message from the "Power Automate" bot in your Teams chat or the "Approvals" app.
 
-    *(Insert screenshot of the Approval request card as it appears in Teams or Outlook)*
-
 2.  **Review Key Details:** The request card will contain all the critical information needed to make a decision: Job Title, Grade, Number of Positions, Requester, and Justification.
 3.  **View the Full Request (Optional):** A direct link to the full request item in SharePoint is provided if you need to view more detailed information or any attached documents.
 4.  **Make Your Decision:**
@@ -108,8 +103,6 @@ As the HR Manager, you are the strategic owner of the recruitment pipeline. Your
 
 The **"Integrated HR Recruitment Tracker" Microsoft Teams site** is your new central hub. All the data and tools you need are available as tabs at the top of the main channel.
 
-*(Insert a screenshot of the Teams channel showing the tabs for MPR Tracker, Candidate Tracker, etc.)*
-
 *   **MPR Tracker Tab:** This is your master view of every hiring request in the company. You can see its current status, who it's assigned to, and all related details, including real-time KPI data.
 *   **Candidate Tracker Tab:** This is the master list of all candidates currently in the active pipeline.
 
@@ -118,8 +111,6 @@ The **"Integrated HR Recruitment Tracker" Microsoft Teams site** is your new cen
 Your most important automated task is assigning a newly approved MPR to an HR Representative. The system makes this incredibly simple.
 
 1.  **Receive the "Action Required" Card:** As soon as an MPR is fully approved by management, you will receive an interactive card in a private chat from the "Power Automate" bot in Microsoft Teams. This card is your signal that a new requisition needs your attention.
-
-    *(Insert screenshot of the HR Manager's assignment card, showing the MPR details and the dropdown menu)*
 
 2.  **Review the Request:** The card will display the key details of the approved MPR. You can click the "View Requisition" button to open the full item in SharePoint if you need more context.
 3.  **Assign a Representative:**
@@ -177,8 +168,6 @@ As the HR Representative, you are the primary operator of the system, managing t
 ### 5.1. The "Control Panel": Understanding the `Candidate Tracker`
 
 The **`Candidate Tracker`** list is your primary workspace. Mastering two key columns will give you full control over the automation.
-
-*(Insert a screenshot of the Candidate Tracker SharePoint list, highlighting the "Overall Status" and "Next Action (Trigger)" columns)*
 
 *   **`Overall Status`:** This is the candidate's current, real-time position in the hiring funnel (e.g., `Pending HM Review`, `Shortlisted`, `Interview Process Ongoing`). This is mostly updated automatically by the system as tasks are completed. **You will also change this manually to kick off certain processes.**
 *   **`Next Action (Trigger)`:** **This is your command center.** This dropdown field is how you tell the automation to perform specific, complex tasks for you, like scheduling an interview.
@@ -251,8 +240,6 @@ The system is designed to ask for your feedback at the most relevant time: **imm
 
 1.  **Receive the Feedback Request Email:** Shortly after the interview's scheduled end time, you will receive an automated email with a subject line like: **"[REQUIRED]: Feedback for interview with [Candidate Name]"**.
 
-    *(Insert a screenshot of the feedback request email, highlighting the unique link)*
-
 2.  **Open the Feedback Form:** Click the unique, personalized link in the email. This will open the "Interview Feedback Form" in your web browser.
     *   **Note:** The form will already be pre-filled with the candidate's name and other details. You do not need to enter this information.
 
@@ -303,4 +290,5 @@ This section provides answers to common questions and solutions to potential iss
 
 
 ---
+
 _This guide provides the foundation for managing the MPR Automation Suite. Always follow proper change management procedures when modifying the production environment._
