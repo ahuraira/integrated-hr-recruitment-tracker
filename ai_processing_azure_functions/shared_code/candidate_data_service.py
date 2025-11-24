@@ -45,42 +45,124 @@ class CandidateDataService:
         logger.info("Starting three-stage AI pipeline for candidate data extraction")
         
         all_logs = []
+        candidate_data = {}
+        pii_data = {}
+        anonymized_content = ""
+        analysis_data = {}
         
+        # Stage 1: Candidate Data Extraction
         try:
-            # Stage 1: Candidate Data Extraction
             logger.info("Stage 1: Extracting candidate data")
             candidate_data, candidate_log = self._extract_candidate_profile(markdown_content, job_title)
             all_logs.append(candidate_log)
+        except Exception as e:
+            logger.error(f"Stage 1 failed: {str(e)}")
+            # Log the failure but continue if possible (though Stage 1 is usually critical)
+            # In this design, we'll try to proceed or return what we have
+            # For now, let's assume we can't really proceed without candidate data, but we want to return the log
+            pass # The error is already logged inside _extract_candidate_profile if it uses the logger correctly, 
+                 # BUT _extract_candidate_profile raises exception. We need to catch it here to preserve the log?
+                 # Actually _extract_candidate_profile raises exception AFTER logging. 
+                 # We need to make sure we capture that log.
+                 # Let's look at _extract_candidate_profile: it raises Exception.
+                 # So we need to catch it here.
             
-            # Stage 2: PII Identification and Anonymization
+            # Wait, _extract_candidate_profile creates an error log but doesn't return it if it raises.
+            # We need to modify _extract_candidate_profile to return the log even on failure OR handle it here.
+            # Better approach: The helper methods raise exception. We should catch it, 
+            # but we can't get the log from the helper if it raises.
+            # So we should probably rely on the helper to log to the DB? No, the logger just returns a dict.
+            # We need to construct the error log here if the helper fails, OR modify helpers.
+            
+            # Actually, looking at the existing code, helpers create an error log and THEN raise.
+            # But they don't return the log.
+            # So we lose that log object.
+            # I will modify this method to construct the error log here if needed, 
+            # OR better: catch the exception which hopefully contains details, and create a log entry here.
+            
+            # Let's stick to the plan: wrap each stage.
+            # Since helpers raise, we need to create the error log here to append to all_logs.
+            
+            error_log = self.ai_logger.create_call_log(
+                stage="candidate_data_extraction",
+                assistant_id=self.openai_service.get_assistant_id("CV_DATA_EXTRACTOR"),
+                model_used="gpt-4o-mini",
+                input_prompt="[FAILED_BEFORE_COMPLETION]", 
+                input_tokens=0,
+                response_text="",
+                output_tokens=0,
+                call_duration_ms=0,
+                call_timestamp=datetime.utcnow().isoformat() + 'Z',
+                success=False,
+                error_details=str(e)
+            )
+            all_logs.append(error_log)
+            # If Stage 1 fails, we probably can't do much else useful, but we return what we have.
+            return self._build_final_result(candidate_data, analysis_data, all_logs, pii_data, anonymized_content)
+
+        # Stage 2: PII Identification and Anonymization
+        try:
             logger.info("Stage 2: Identifying PII and creating anonymized content")
             pii_data, anonymized_content, pii_log = self._identify_and_anonymize_pii(markdown_content)
             all_logs.append(pii_log)
-            
-            # Stage 3: Skills and Experience Analysis
+        except Exception as e:
+            logger.error(f"Stage 2 failed: {str(e)}")
+            error_log = self.ai_logger.create_call_log(
+                stage="pii_identification",
+                assistant_id=self.openai_service.get_assistant_id("CV_PII_IDENTIFIER"),
+                model_used="gpt-4o-mini",
+                input_prompt="[FAILED_BEFORE_COMPLETION]",
+                input_tokens=0,
+                response_text="",
+                output_tokens=0,
+                call_duration_ms=0,
+                call_timestamp=datetime.utcnow().isoformat() + 'Z',
+                success=False,
+                error_details=str(e)
+            )
+            all_logs.append(error_log)
+            # If Stage 2 fails, we cannot do Stage 3 (needs anonymized content)
+            return self._build_final_result(candidate_data, analysis_data, all_logs, pii_data, anonymized_content)
+
+        # Stage 3: Skills and Experience Analysis
+        try:
             logger.info("Stage 3: Analyzing skills and experience")
             analysis_data, analysis_log = self._analyze_skills_and_experience(anonymized_content, job_title)
             all_logs.append(analysis_log)
-            
-            # Calculate token usage summary
-            token_summary = self._calculate_token_summary(all_logs)
-            
-            # Consolidate results
-            result = {
-                'candidateProfile': candidate_data,
-                'professionalAnalysis': analysis_data,
-                'aiCallLogs': all_logs,
-                'tokenUsageSummary': token_summary,
-                'piiData': pii_data,  # For debugging, not returned to Power Automate
-                'anonymizedContent': anonymized_content  # For debugging, not returned to Power Automate
-            }
-            
-            logger.info("Three-stage AI pipeline completed successfully")
-            return result
-            
         except Exception as e:
-            logger.error(f"Error in AI pipeline: {str(e)}")
-            raise
+            logger.error(f"Stage 3 failed: {str(e)}")
+            error_log = self.ai_logger.create_call_log(
+                stage="skills_analysis",
+                assistant_id=self.openai_service.get_assistant_id("CV_SKILLS_ANALYST"),
+                model_used="gpt-4o-mini",
+                input_prompt="[FAILED_BEFORE_COMPLETION]",
+                input_tokens=0,
+                response_text="",
+                output_tokens=0,
+                call_duration_ms=0,
+                call_timestamp=datetime.utcnow().isoformat() + 'Z',
+                success=False,
+                error_details=str(e)
+            )
+            all_logs.append(error_log)
+            # Return what we have (Stage 1 & 2 successful, Stage 3 failed)
+            return self._build_final_result(candidate_data, analysis_data, all_logs, pii_data, anonymized_content)
+        
+        # All stages successful
+        logger.info("Three-stage AI pipeline completed successfully")
+        return self._build_final_result(candidate_data, analysis_data, all_logs, pii_data, anonymized_content)
+
+    def _build_final_result(self, candidate_data, analysis_data, all_logs, pii_data, anonymized_content):
+        """Helper to build the final result dictionary"""
+        token_summary = self._calculate_token_summary(all_logs)
+        return {
+            'candidateProfile': candidate_data,
+            'professionalAnalysis': analysis_data,
+            'aiCallLogs': all_logs,
+            'tokenUsageSummary': token_summary,
+            'piiData': pii_data,
+            'anonymizedContent': anonymized_content
+        }
     
     def _extract_candidate_profile(self, markdown_content: str, job_title: str) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """
