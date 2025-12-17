@@ -6,4 +6,5 @@ azure-functions
 openai
 python-docx
 pymupdf4llm
+azure-ai-formrecognizer
 requests  # For testing

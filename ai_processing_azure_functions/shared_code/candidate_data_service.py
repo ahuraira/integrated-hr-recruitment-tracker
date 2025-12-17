@@ -206,8 +206,13 @@ class CandidateDataService:
             # Parse the JSON response
             candidate_data = json.loads(response.content)['candidateProfile']
             
-            # Merge with regex data (regex takes precedence for structured fields)
-            candidate_data.update(regex_data)
+            # Merge with regex data - AI takes precedence, regex only fills missing fields
+            for key, value in regex_data.items():
+                if key not in candidate_data or not candidate_data.get(key):
+                    candidate_data[key] = value
+                    logger.debug(f"Using regex fallback for {key}")
+                else:
+                    logger.debug(f"Preserving AI-extracted value for {key}, ignoring regex")
             
             # Create AI call log
             call_log = self.ai_logger.create_call_log(

@@ -3,33 +3,20 @@
 import logging
 import io
 from docx import Document
-import pymupdf4llm # Uses PyMuPDF, optimized for LLM-friendly Markdown output
-import pymupdf # Required for creating document objects
-
-# Define custom exceptions for clear error handling
-class UnsupportedFileType(Exception):
-    """Custom exception for unsupported file types."""
 # /shared_code/document_processor.py
 
 import logging
 import io
+import os
 from docx import Document
 import pymupdf4llm # Uses PyMuPDF, optimized for LLM-friendly Markdown output
 import pymupdf # Required for creating document objects
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.formrecognizer import DocumentAnalysisClient
 
 # Define custom exceptions for clear error handling
 class UnsupportedFileType(Exception):
     """Custom exception for unsupported file types."""
-    pass
-
-class DocumentProcessingError(Exception):
-    """Custom exception for errors during document parsing."""
-    pass
-
-def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
-    """
-    Extracts structured Markdown text from a given file (PDF or DOCX).
-
     Args:
         file_name (str): The name of the file, used to determine the file type.
         file_bytes (bytes): The raw byte content of the file.
@@ -38,7 +25,7 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
         str: The extracted text in Markdown format.
 
     Raises:
-        UnsupportedFileType: If the file extension is not .pdf or .docx.
+        UnsupportedFileType: If the file extension is not supported.
         DocumentProcessingError: If the document is corrupt or text extraction fails.
     """
     # Input validation
@@ -56,65 +43,54 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
     # Extract file extension
     file_parts = file_name.lower().split('.')
     if len(file_parts) < 2:
-        raise UnsupportedFileType(f"File {file_name} has no extension. Only .pdf and .docx are supported.")
+        raise UnsupportedFileType(f"File {file_name} has no extension.")
     
     file_extension = file_parts[-1]
+    supported_extensions = ['pdf', 'docx', 'jpg', 'jpeg', 'png', 'bmp', 'tiff']
+    
+    if file_extension not in supported_extensions:
+        raise UnsupportedFileType(f"Unsupported file type: '{file_extension}'. Supported: {', '.join(supported_extensions)}")
 
     try:
         markdown_text = ""
-        if file_extension == 'pdf':
-            # PyMuPDF4LLM is highly efficient and designed for this exact use case
-            # It uses PyMuPDF under the hood but with better formatting for AI
-            pdf_doc = None
+        
+        # Strategy:
+        # 1. Image files -> Direct to Azure OCR
+        # 2. PDF files -> Try PyMuPDF first (fast, free). If text is sparse (scanned), fallback to Azure OCR.
+        # 3. DOCX files -> Standard extraction
+        
+        if file_extension in ['jpg', 'jpeg', 'png', 'bmp', 'tiff']:
+            logging.info(f"Image file detected ({file_extension}). Using Azure Document Intelligence.")
+            return extract_with_azure_doc_intelligence(file_bytes)
+            
+        elif file_extension == 'pdf':
+            # Try standard extraction first
             try:
-                # Create a PyMuPDF document object from bytes
                 pdf_doc = pymupdf.open(stream=file_bytes, filetype="pdf")
                 
-                # Validate the PDF was opened successfully
                 if pdf_doc.page_count == 0:
                     raise DocumentProcessingError(f"PDF {file_name} appears to be empty (0 pages)")
                 
-                # Hybrid Approach: Page-by-Page Validation
-                # We extract markdown per page and validate against raw text to ensure no content (like headers) is lost.
+                # Extract text using PyMuPDF4LLM
+                markdown_text = pymupdf4llm.to_markdown(pdf_doc)
                 
-                # Get markdown chunks for each page
-                md_chunks = pymupdf4llm.to_markdown(pdf_doc, page_chunks=True)
+                # Heuristic check for scanned PDF:
+                # If extracted text is very short relative to page count, it's likely scanned.
+                # Threshold: < 50 characters per page average
+                char_count = len(markdown_text.strip())
+                avg_chars_per_page = char_count / pdf_doc.page_count
                 
-                final_markdown_parts = []
+                logging.info(f"PDF Standard Extraction: {char_count} chars, {pdf_doc.page_count} pages. Avg: {avg_chars_per_page:.1f}")
                 
-                # Iterate through pages to validate each one
-                for i, page_md in enumerate(md_chunks):
-                    # Get the corresponding raw text for this page
-                    if i < len(pdf_doc):
-                        raw_text = pdf_doc[i].get_text()
-                        
-                        # Normalize texts for comparison (remove whitespace)
-                        # We check if the first significant chunk of raw text exists in the markdown
-                        clean_raw = "".join(raw_text.split())[:100]
-                        clean_md = "".join(page_md['text'].split())
-                        
-                        if clean_raw and clean_raw not in clean_md:
-                            logging.warning(f"Potential content stripping detected on page {i+1} of {file_name}. Prepending raw text.")
-                            # Prepend raw text to this page's markdown
-                            final_markdown_parts.append(f"{raw_text}\n\n---\n\n{page_md['text']}")
-                        else:
-                            final_markdown_parts.append(page_md['text'])
-                    else:
-                        final_markdown_parts.append(page_md['text'])
+                if avg_chars_per_page < 50:
+                    logging.warning(f"Low text density detected ({avg_chars_per_page:.1f} chars/page). Likely scanned PDF. Falling back to OCR.")
+                    markdown_text = extract_with_azure_doc_intelligence(file_bytes)
                 
-                markdown_text = "\n\n".join(final_markdown_parts)
+                pdf_doc.close()
                 
-            except pymupdf.FileDataError as pdf_error:
-                raise DocumentProcessingError(f"Invalid or corrupted PDF file {file_name}: {pdf_error}")
-            except Exception as pdf_error:
-                raise DocumentProcessingError(f"Failed to process PDF file {file_name}: {pdf_error}")
-            finally:
-                # Always close the document to free memory
-                if pdf_doc is not None:
-                    try:
-                        pdf_doc.close()
-                    except:
-                        pass  # Ignore close errors
+            except Exception as e:
+                logging.warning(f"Standard PDF extraction failed: {e}. Attempting fallback to OCR.")
+                markdown_text = extract_with_azure_doc_intelligence(file_bytes)
 
         elif file_extension == 'docx':
             # For DOCX, we can build a simple Markdown representation.
@@ -122,8 +98,7 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
                 document = Document(io.BytesIO(file_bytes))
                 markdown_parts = []
                 for para in document.paragraphs:
-                    if para.text.strip():  # Only add non-empty paragraphs
-                        # Basic heuristic: Treat paragraphs with bold runs as headings
+                    if para.text.strip():
                         if para.runs and any(run.bold for run in para.runs):
                             markdown_parts.append(f"## {para.text.strip()}\n")
                         else:
@@ -131,9 +106,6 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
                 markdown_text = "\n".join(markdown_parts)
             except Exception as docx_error:
                 raise DocumentProcessingError(f"Failed to process DOCX file {file_name}: {docx_error}")
-            
-        else:
-            raise UnsupportedFileType(f"Unsupported file type: '{file_extension}'. Only .pdf and .docx are supported.")
 
         if not markdown_text or not markdown_text.strip():
             raise DocumentProcessingError(f"No text could be extracted from {file_name}. The file may be empty or image-based.")
@@ -142,9 +114,7 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
         return markdown_text
 
     except UnsupportedFileType:
-        # Re-raise the specific exception to be caught by the main function
         raise
     except Exception as e:
-        # Catch any other generic library errors (e.g., corrupt file)
         logging.error(f"Failed to process document {file_name}. Error: {e}")
         raise DocumentProcessingError(f"A library error occurred while processing {file_name}: {e}")

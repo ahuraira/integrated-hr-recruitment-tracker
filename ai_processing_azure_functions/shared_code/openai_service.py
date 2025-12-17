@@ -163,6 +163,32 @@ class OpenAIService:
                 error_msg = "Assistant run expired"
                 logger.error(error_msg)
                 raise Exception(error_msg)
+
+            elif run.status == 'incomplete':
+                details = getattr(run, 'incomplete_details', None)
+                
+                # Check if it's a content filter issue
+                if details and hasattr(details, 'reason'):
+                    if details.reason == 'content_filter':
+                        error_msg = (
+                            f"Assistant run blocked by Azure content filter. "
+                            f"This usually means the CV content or prompt contains text flagged as potentially "
+                            f"inappropriate by Azure's safety systems. "
+                            f"Details: {details}. "
+                            f"Try: 1) Review CV for any flagged content, 2) Check assistant instructions, "
+                            f"3) Contact Azure support to review content filter settings."
+                        )
+                    elif details.reason == 'max_completion_tokens':
+                        error_msg = f"Assistant run incomplete - exceeded max completion tokens. Details: {details}"
+                    elif details.reason == 'max_prompt_tokens':
+                        error_msg = f"Assistant run incomplete - exceeded max prompt tokens. Details: {details}"
+                    else:
+                        error_msg = f"Assistant run incomplete. Reason: {details.reason}. Details: {details}"
+                else:
+                    error_msg = f"Assistant run incomplete. Details: {details if details else 'No details available'}"
+                
+                logger.error(error_msg)
+                raise Exception(error_msg)
                 
             else:
                 error_msg = f"Assistant run ended with unexpected status: {run.status}"
