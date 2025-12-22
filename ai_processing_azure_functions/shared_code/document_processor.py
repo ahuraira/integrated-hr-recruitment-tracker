@@ -1,22 +1,89 @@
-# /shared_code/document_processor.py
-
-import logging
-import io
-from docx import Document
-# /shared_code/document_processor.py
 
 import logging
 import io
 import os
+import time
 from docx import Document
 import pymupdf4llm # Uses PyMuPDF, optimized for LLM-friendly Markdown output
 import pymupdf # Required for creating document objects
 from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import HttpResponseError
 from azure.ai.formrecognizer import DocumentAnalysisClient
 
 # Define custom exceptions for clear error handling
 class UnsupportedFileType(Exception):
     """Custom exception for unsupported file types."""
+    pass
+
+class DocumentProcessingError(Exception):
+    """Custom exception for general document processing errors."""
+    pass
+
+def extract_with_azure_doc_intelligence(file_bytes: bytes) -> str:
+    """
+    Extracts text/layout from a file (PDF or Image) using Azure Document Intelligence.
+    Implements a fallback mechanism:
+    1. Try Primary (F0) credentials.
+    2. If Quota Exceeded (429/403), try Secondary (S0) credentials.
+    """
+    
+    # helper to perform the actual extraction call
+    def call_doc_intelligence(endpoint, key, content):
+        credential = AzureKeyCredential(key)
+        client = DocumentAnalysisClient(endpoint=endpoint, credential=credential)
+        
+        poller = client.begin_analyze_document(
+            model_id="prebuilt-layout", 
+            document=content
+        )
+        result = poller.result()
+        return result.content
+
+    # Load credentials
+    endpoint_primary = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+    key_primary = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+    
+    endpoint_secondary = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT_SECONDARY")
+    key_secondary = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_KEY_SECONDARY")
+
+    if not endpoint_primary or not key_primary:
+        raise DocumentProcessingError("Primary Azure Document Intelligence credentials are not configured.")
+
+    try:
+        # ATTEMPT 1: Primary (F0)
+        logging.info("Attempting OCR with Primary (F0) credentials.")
+        return call_doc_intelligence(endpoint_primary, key_primary, file_bytes)
+
+    except HttpResponseError as e:
+        status_code = e.status_code if hasattr(e, 'status_code') else 0
+        error_msg = str(e).lower()
+        
+        # Check for Quota/Throttling errors
+        # 429: Too Many Requests
+        # 403: Out of Call Volume Quota (common for F0)
+        is_quota_error = status_code == 429 or status_code == 403 or "quota" in error_msg
+        
+        if is_quota_error and endpoint_secondary and key_secondary:
+            logging.warning(f"Primary OCR tier quota exceeded (Status: {status_code}). Failing over to Secondary (S0) tier.")
+            try:
+                # ATTEMPT 2: Secondary (S0)
+                return call_doc_intelligence(endpoint_secondary, key_secondary, file_bytes)
+            except Exception as secondary_error:
+                logging.error(f"Secondary OCR tier also failed: {secondary_error}")
+                raise DocumentProcessingError(f"OCR failed on both tiers. Primary: {e}. Secondary: {secondary_error}")
+        else:
+            # Not a quota error or no secondary credentials
+            logging.error(f"Azure Document Intelligence error: {e}")
+            raise DocumentProcessingError(f"Azure Document Intelligence error: {e}")
+
+    except Exception as e:
+        logging.error(f"Unexpected error during OCR: {e}")
+        raise DocumentProcessingError(f"Unexpected error during OCR: {e}")
+
+def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
+    """
+    Extracts text from PDF or DOCX files and converts it to Markdown.
+    
     Args:
         file_name (str): The name of the file, used to determine the file type.
         file_bytes (bytes): The raw byte content of the file.
