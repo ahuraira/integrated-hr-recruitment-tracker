@@ -138,8 +138,35 @@ def extract_markdown_from_file(file_name: str, file_bytes: bytes) -> str:
                 if pdf_doc.page_count == 0:
                     raise DocumentProcessingError(f"PDF {file_name} appears to be empty (0 pages)")
                 
-                # Extract text using PyMuPDF4LLM
-                markdown_text = pymupdf4llm.to_markdown(pdf_doc)
+                # Hybrid Approach: Page-by-Page Validation
+                # We extract markdown per page and validate against raw text to ensure no content (like headers) is lost.
+                
+                # Get markdown chunks for each page
+                md_chunks = pymupdf4llm.to_markdown(pdf_doc, page_chunks=True)
+                
+                final_markdown_parts = []
+                
+                # Iterate through pages to validate each one
+                for i, page_md in enumerate(md_chunks):
+                    # Get the corresponding raw text for this page
+                    if i < len(pdf_doc):
+                        raw_text = pdf_doc[i].get_text()
+                        
+                        # Normalize texts for comparison (remove whitespace)
+                        # We check if the first significant chunk of raw text exists in the markdown
+                        clean_raw = "".join(raw_text.split())[:100]
+                        clean_md = "".join(page_md['text'].split())
+                        
+                        if clean_raw and clean_raw not in clean_md:
+                            logging.warning(f"Potential content stripping detected on page {i+1} of {file_name}. Prepending raw text.")
+                            # Prepend raw text to this page's markdown
+                            final_markdown_parts.append(f"{raw_text}\n\n---\n\n{page_md['text']}")
+                        else:
+                            final_markdown_parts.append(page_md['text'])
+                    else:
+                        final_markdown_parts.append(page_md['text'])
+                
+                markdown_text = "\n\n".join(final_markdown_parts)
                 
                 # Heuristic check for scanned PDF:
                 # If extracted text is very short relative to page count, it's likely scanned.
