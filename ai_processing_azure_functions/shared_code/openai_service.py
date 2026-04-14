@@ -10,10 +10,17 @@ Date: September 23, 2025
 """
 
 import os
+import time
 import logging
 from typing import Dict, Any, Optional
 from openai import AzureOpenAI
 from dataclasses import dataclass
+
+TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled", "expired", "incomplete"}
+POLL_INITIAL_INTERVAL = 1.0
+POLL_MAX_INTERVAL = 5.0
+POLL_BACKOFF_FACTOR = 1.5
+RUN_EXPIRES_AFTER_SECONDS = 600
 
 logger = logging.getLogger(__name__)
 
@@ -85,49 +92,75 @@ class OpenAIService:
         
         return self.assistant_ids[assistant_type]
     
-    def call_assistant(self, assistant_type: str, prompt: str, timeout: int = 30) -> OpenAIResponse:
+    def call_assistant(self, assistant_type: str, prompt: str, timeout: int = 300) -> OpenAIResponse:
         """
-        Call an Azure OpenAI assistant with the given prompt
-        
+        Call an Azure OpenAI assistant with the given prompt.
+
         Args:
             assistant_type: Type of assistant to call
             prompt: Input prompt for the assistant
-            timeout: Request timeout in seconds
-            
+            timeout: Wall-clock timeout in seconds for the whole run (poll + generate).
+                     The assistant run is created with expires_after=RUN_EXPIRES_AFTER_SECONDS
+                     so a stuck queued run self-expires server-side as well.
+
         Returns:
             OpenAIResponse object with the response data
-            
+
         Raises:
-            Exception: If the API call fails
+            TimeoutError: If the run does not reach a terminal state within `timeout`.
+            Exception: If the API call fails.
         """
         assistant_id = self.get_assistant_id(assistant_type)
-        
+
         logger.info(f"Calling {assistant_type} assistant (ID: {assistant_id})")
-        
+
+        thread = None
         try:
-            # Create a thread
             thread = self.client.beta.threads.create()
-            
-            # Add the user message to the thread
+
             self.client.beta.threads.messages.create(
                 thread_id=thread.id,
                 role="user",
                 content=prompt
             )
-            
-            # Run the assistant
+
             run = self.client.beta.threads.runs.create(
                 thread_id=thread.id,
-                assistant_id=assistant_id
+                assistant_id=assistant_id,
+                expires_after={"anchor": "last_active_at", "seconds": RUN_EXPIRES_AFTER_SECONDS},
             )
-            
-            # Poll for completion
-            while run.status in ['queued', 'in_progress', 'cancelling']:
+
+            deadline = time.monotonic() + timeout
+            interval = POLL_INITIAL_INTERVAL
+            poll_count = 0
+            while run.status not in TERMINAL_RUN_STATUSES:
+                if time.monotonic() >= deadline:
+                    logger.error(
+                        f"Client-side timeout after {timeout}s waiting for run {run.id} "
+                        f"(last status={run.status}). Attempting cancel."
+                    )
+                    try:
+                        self.client.beta.threads.runs.cancel(thread_id=thread.id, run_id=run.id)
+                    except Exception as cancel_err:
+                        logger.warning(f"Cancel attempt failed: {cancel_err}")
+                    raise TimeoutError(
+                        f"Assistant run {run.id} did not complete within {timeout}s "
+                        f"(last status={run.status})"
+                    )
+
+                time.sleep(interval)
+                interval = min(interval * POLL_BACKOFF_FACTOR, POLL_MAX_INTERVAL)
+                poll_count += 1
+
                 run = self.client.beta.threads.runs.retrieve(
                     thread_id=thread.id,
                     run_id=run.id
                 )
-            
+
+            logger.info(
+                f"Run {run.id} reached terminal status '{run.status}' after {poll_count} polls"
+            )
+
             if run.status == 'completed':
                 # Retrieve the messages
                 messages = self.client.beta.threads.messages.list(
@@ -160,7 +193,15 @@ class OpenAIService:
                 raise Exception(error_msg)
                 
             elif run.status == 'expired':
-                error_msg = "Assistant run expired"
+                error_msg = (
+                    f"Assistant run {run.id} expired without starting "
+                    f"(started_at={getattr(run, 'started_at', None)}, "
+                    f"usage={getattr(run, 'usage', None)}). "
+                    "Common causes: (1) the underlying model deployment has been retired "
+                    "or is unavailable, (2) TPM quota exhausted, (3) a stuck prior run on "
+                    "the same thread. Check the deployment's model version and Azure OpenAI "
+                    "quotas."
+                )
                 logger.error(error_msg)
                 raise Exception(error_msg)
 
