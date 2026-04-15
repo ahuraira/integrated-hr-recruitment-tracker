@@ -197,56 +197,64 @@ Provides a tamper-evident audit trail of every AI interaction during CV ingestio
 
 ```mermaid
 graph TD
+    %% Visual Styling Definitions (Matched to Case Study)
+    classDef process fill:#E8F4F8,stroke:#2C5F8D,stroke-width:2px,color:#000;
+    classDef storage fill:#FFF3CD,stroke:#856404,stroke-width:2px,color:#000;
+    classDef external fill:#D4EDDA,stroke:#155724,stroke-width:2px,color:#000;
+    classDef azure fill:#E8F4F8,stroke:#2C5F8D,stroke-width:2px,stroke-dasharray: 5 5,color:#000;
+
     subgraph User & Input
-        A[Requester] --> B(MS Form);
-        C[HR Representative] --> D[SP DocLib: CV Intake];
+        A["Requester"]:::external --> B("MS Form"):::external
+        C["HR Representative"]:::external --> D["SP DocLib:<br/>CV Intake"]:::storage
     end
 
     subgraph Power Platform - Power Automate
-        B -- Triggers --> F1(MPR-01: Approval);
-        F1 -- Creates & Updates --> SP1[(MPR Tracker)];
+        B -- Triggers --> F1("MPR-01:<br/>Approval"):::process
+        F1 -- Creates & Updates --> SP1[("MPR Tracker")]:::storage
         
-        SP1 -- Status: 'Approved' --> F2(MPR-02a: Assignment);
-        F2 -- Updates --> SP1;
-        F2 -- Creates Folders --> D;
+        SP1 -- Status:<br/>'Approved' --> F2("MPR-02a:<br/>Assignment"):::process
+        F2 -- Updates --> SP1
+        F2 -- Creates Folders --> D
         
-        D -- File Creation Triggers --> F8(MPR-08: AI Ingestion);
-        F8 -- Calls --> AZ1[Azure Function];
-        AZ1 -- Returns JSON --> F8;
-        F8 -- Creates --> SP2[(Candidate Tracker)];
-    F8 -- Logs --> SP5[(AI Log)];
+        D -- File Creation<br/>Triggers --> F8("MPR-08:<br/>AI Ingestion"):::process
+        F8 -- Calls --> AZ1["Azure Function"]:::azure
+        AZ1 -- Returns JSON --> F8
+        F8 -- Creates --> SP2[("Candidate Tracker")]:::storage
+    F8 -- Logs --> SP5[("AI Log")]:::storage
         
-        F_HM(MPR-SYS: Send HM Digest) -- Runs Daily --> SP2;
-        F_HM -- Posts Card --> Teams;
-        Teams -- User Action Triggers --> F9(MPR-09: Process HM Decision);
-        F9 -- Updates --> SP2;
+        F_HM("MPR-SYS:<br/>Send HM Digest"):::process -- Runs Daily --> SP2
+        F_HM -- Posts Card --> Teams:::external
+        Teams -- User Action<br/>Triggers --> F9("MPR-09:<br/>Process HM Decision"):::process
+        F9 -- Updates --> SP2
         
-        U_HR[HR Rep] -- Sets 'Next Action' --> SP2;
-        SP2 -- 'Next Action' Triggers --> F3(MPR-03: Lifecycle);
-        F3 -- Creates --> SP3[(Interview Schedule)];
+        U_HR["HR Rep"]:::external -- Sets<br/>'Next Action' --> SP2
+        SP2 -- 'Next Action'<br/>Triggers --> F3("MPR-03:<br/>Lifecycle"):::process
+        F3 -- Creates --> SP3[("Interview Schedule")]:::storage
         
-        SP3 -- Interview Complete, Triggers --> F4(MPR-04: Trigger Feedback);
-        F4 -- Creates --> SP4[(Interview Feedback)];
-        F4 -- Sends Links --> Interviewer;
-        Interviewer -- Submits Form --> F5(MPR-05: Capture Feedback);
-        F5 -- Updates --> SP4;
+        SP3 -- Interview Complete,<br/>Triggers --> F4("MPR-04:<br/>Trigger Feedback"):::process
+        F4 -- Creates --> SP4[("Interview Feedback")]:::storage
+        F4 -- Sends Links --> Interviewer:::external
+        Interviewer -- Submits Form --> F5("MPR-05:<br/>Capture Feedback"):::process
+        F5 -- Updates --> SP4
         
-        U_HR -- Sets 'Final Feedback' Flag --> SP4;
-        SP4 -- Flag Change Triggers --> F6(MPR-06: Transfer Feedback);
-        F6 -- Updates --> SP2 & SP3;
+        U_HR -- Sets 'Final<br/>Feedback' Flag --> SP4
+        SP4 -- Flag Change<br/>Triggers --> F6("MPR-06:<br/>Transfer Feedback"):::process
+        F6 -- Updates --> SP2 & SP3
     end
 
     subgraph System Governance
-        F_SLA(MPR-SYS: Monitor SLAs) -- Runs Daily, Reads All Lists --> F_SLA;
-        F_SLA -- Sends --> Notifications;
+        F_SLA("MPR-SYS:<br/>Monitor SLAs"):::process -- Sends --> Notifications:::external
         
-        F_KPI(MPR-SYS: Update Aggregates) -- Triggers on Candidate Change --> SP2;
-        F_KPI -- Calculates & Updates --> SP1;
+        F_KPI("MPR-SYS:<br/>Update Aggregates"):::process -- Calculates<br/>& Updates --> SP1
     end
     
+    %% Timers and Cross-Module Triggers
+    Timer("Runs Daily"):::external --> F_SLA
+    SP2 -.->|Triggers on<br/>Change| F_KPI
+    
     subgraph Azure Pro-Code
-        AZ1(Python AI Engine);
-        AZ1 -- Calls --> AZ2[Azure OpenAI];
+        AZ1("Python AI Engine"):::azure
+        AZ1 -- Calls --> AZ2["Azure OpenAI"]:::azure
     end
 ```
 
